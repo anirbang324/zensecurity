@@ -1,0 +1,11 @@
+{
+  "name": "zensecurity-workspace",
+  "version": "1.0.0",
+  "description": "Monorepo workspace for Zen Security and Productivity Tracker",
+  "scripts": {
+    "dev": "npx -y serve . -l 3000"
+  },
+  "dependencies": {
+    "puppeteer-core": "^25.0.4"
+  }
+}

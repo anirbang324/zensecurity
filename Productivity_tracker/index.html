@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>
+    if (window.location.pathname.endsWith('/Productivity_tracker')) {
+      window.location.replace(window.location.pathname + '/' + window.location.search + window.location.hash);
+    }
+  </script>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Productivity Tracker — Trupti Shiralkar</title>
+  <meta name="description" content="Neuroscience-based Productivity Tracker by Trupti Shiralkar. Track morning, afternoon, and evening protocols powered by science."/>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+  <!-- App navbar -->
+  <nav id="app-nav" class="app-nav">
+    <div class="nav-inner">
+      <a href="#app" class="nav-brand">
+        <span class="brain-icon">🧠</span>
+        <span>Productivity Tracker</span>
+      </a>
+      <div class="nav-links" id="nav-links">
+        <a href="../zensecurity-main/index.html" class="nav-lnk nav-lnk--zen" id="zen-nav-link">🛡 Zen Security</a>
+        <a href="#app"     class="nav-lnk">Home</a>
+        <a href="#tracker" class="nav-lnk">Tracker</a>
+        <a href="#custom"  class="nav-lnk">Custom</a>
+        <a href="#samples" class="nav-lnk">Samples</a>
+        <a href="#summary" class="nav-lnk">Summary</a>
+        <a href="#about"   class="nav-lnk">About</a>
+        <a href="#contact" class="nav-lnk">Contact</a>
+        <button id="pomo-toggle-btn" class="nav-lnk" style="background:none; border:none; cursor:pointer; font-size:inherit; font-family:inherit; font-weight:500; display:flex; align-items:center; gap:0.25rem;">⏱️ Focus</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.75rem;">
+        <button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle light/dark mode" title="Toggle theme">
+          <span id="theme-icon">☀️</span>
+          <span class="toggle-label" id="theme-label">Light</span>
+        </button>
+        <div id="nav-user" class="nav-user"></div>
+      </div>
+      <button id="nav-hamburger" class="nav-hamburger" aria-label="Menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+    <div id="nav-mobile" class="nav-mobile hidden" aria-hidden="true">
+      <a href="../zensecurity-main/index.html" class="nav-lnk nav-lnk--zen">🛡 Zen Security</a>
+      <a href="#app"     class="nav-lnk">Home</a>
+      <a href="#tracker" class="nav-lnk">Tracker</a>
+      <a href="#custom"  class="nav-lnk">Custom</a>
+      <a href="#samples" class="nav-lnk">Samples</a>
+      <a href="#summary" class="nav-lnk">Summary</a>
+      <a href="#about"   class="nav-lnk">About</a>
+      <a href="#contact" class="nav-lnk">Contact</a>
+      <button id="pomo-toggle-mobile" class="nav-lnk" style="background:none; border:none; cursor:pointer; font-size:inherit; font-family:inherit; font-weight:500; text-align:left; padding:0.5rem 0; width:100%; display:flex; align-items:center; gap:0.25rem;">⏱️ Focus</button>
+      <button id="theme-toggle-mobile" class="nav-lnk" style="background:none; border:none; cursor:pointer; font-size:inherit; font-family:inherit; font-weight:500; text-align:left; padding:0.5rem 0; width:100%; display:flex; align-items:center; gap:0.5rem;" aria-label="Toggle theme">
+        <span id="theme-icon-mobile">☀️</span> <span id="theme-label-mobile">Switch to Light Mode</span>
+      </button>
+      <div id="nav-mobile-user"></div>
+    </div>
+  </nav>
+
+  <!-- Page content rendered here -->
+  <main id="root"></main>
+
+  <!-- App footer -->
+  <footer id="app-footer" class="app-footer">
+    <div class="footer-inner">
+      <div class="footer-grid">
+        <div>
+          <div class="footer-brand">🧠 Productivity Tracker</div>
+          <p class="footer-desc">Neuroscience-backed daily routines inspired by leading researchers.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Quick Links</h4>
+          <a href="../zensecurity-main/index.html">🛡 Zen Security</a>
+          <a href="#app">Tracker Home</a>
+          <a href="#tracker">Daily Tracker</a>
+          <a href="#custom">Custom Trackers</a>
+          <a href="#summary">Progress Summary</a>
+        </div>
+        <div class="footer-col">
+          <h4>Resources</h4>
+          <a href="#about">About</a>
+          <a href="#privacy">Privacy</a>
+          <a href="#contact">Contact</a>
+        </div>
+      </div>
+      <div class="footer-bottom">© 2025 Productivity Tracker. Built with neuroscience principles.</div>
+    </div>
+  </footer>
+
+  <!-- Toast notifications -->
+  <div id="toast-wrap"></div>
+
+  <!-- Pomodoro Floating Widget -->
+  <div id="pomodoro-widget" class="pomodoro-widget hidden">
+    <div class="pomodoro-handle" id="pomodoro-handle">
+      <span>⏱️ Focus Timer</span>
+      <span class="pomodoro-drag-icon">⋮⋮</span>
+    </div>
+    <div class="pomodoro-body">
+      <div class="pomodoro-time" id="pomodoro-time">25:00</div>
+      <div class="pomodoro-controls">
+        <button id="pomodoro-start" class="pomo-btn">Start</button>
+        <button id="pomodoro-pause" class="pomo-btn hidden">Pause</button>
+        <button id="pomodoro-reset" class="pomo-btn">Reset</button>
+      </div>
+      <div class="pomodoro-mode-select">
+        <button class="pomo-mode active" id="pomo-focus-mode" data-time="1500">Focus</button>
+        <button class="pomo-mode" id="pomo-short-mode" data-time="300">Short Break</button>
+        <button class="pomo-mode" id="pomo-long-mode" data-time="900">Long Break</button>
+      </div>
+    </div>
+    <button class="pomodoro-close" id="pomodoro-close" title="Close timer">&times;</button>
+  </div>
+
+  <!-- Dependencies via CDN (no npm needed) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

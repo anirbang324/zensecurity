@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>
+    if (window.location.pathname.endsWith('/zensecurity-main')) {
+      window.location.replace(window.location.pathname + '/' + window.location.search + window.location.hash);
+    }
+  </script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Trupti Shiralkar — Zen Security</title>
+  <meta name="description" content="Portfolio site for Trupti Shiralkar: blogs, talks, podcasts, and videos in cybersecurity. Security Leader, Advisor, and Speaker." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css" />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="Home">
+      <img src="assets/favicon.svg" alt="" class="logo"/>
+      <div class="brand-text">
+        <span class="name">Trupti Shiralkar</span>
+        <span class="tag">Security Leader • Advisor • Speaker</span>
+      </div>
+    </a>
+    <nav class="nav" aria-label="Main navigation">
+      <a href="#work">Work</a>
+      <a href="#contact">Contact</a>
+      <a href="../Productivity_tracker/index.html" class="btn primary nav-tracker-btn" id="nav-tracker-link">🧠 Productivity Tracker</a>
+    </nav>
+    <button id="nav-toggle" class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </header>
+
+  <!-- Mobile nav menu -->
+  <div id="mobile-menu" class="mobile-menu hidden" aria-hidden="true">
+    <a href="#work" class="mobile-link">Work</a>
+    <a href="#contact" class="mobile-link">Contact</a>
+    <a href="../Productivity_tracker/index.html" class="mobile-link mobile-tracker-link">🧠 Productivity Tracker</a>
+  </div>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-content">
+        <h1>Building Resilient, secure software @scale.</h1>
+        <p class="lede"> 
+Welcome to Zen Security! I'm glad you're here. This is where I share insights from my journey in cybersecurity, modern leadership, mindfulness, and travel — exploring how to lead with purpose, live with balance, and embrace life's adventures. You'll find perspectives shaped by both boardroom strategies and meditation practices.
+Explore my curated blogs, podcasts, talks, and interviews as we navigate the intersection of technology, leadership, and intentional living.</p>
+        <div class="actions">
+          <a class="btn primary" href="#contact">Contact</a>
+          <a class="btn ghost tracker-cta" href="../Productivity_tracker/index.html">🧠 Productivity Tracker →</a>
+        </div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="orb"></div><div class="orb"></div><div class="orb"></div>
+      </div>
+    </section>
+
+
+    <section id="work" class="work">
+      <div class="toolbar">
+        <div class="search">
+          <input id="searchInput" type="search" placeholder="Search by title, topic, or source…" aria-label="Search work">
+          <button id="clearSearch" title="Clear search" aria-label="Clear search">&times;</button>
+        </div>
+        <div class="filters">
+          <button class="chip active" data-filter="all">All</button>
+          <button class="chip" data-filter="blog">Blogs</button>
+          <button class="chip" data-filter="podcast">Podcasts</button>
+          <button class="chip" data-filter="talk">Talks</button>
+          <button class="chip" data-filter="video">Videos</button>
+          <button class="chip" data-filter="profile">Profiles</button>
+        </div>
+        <div class="sort">
+          <label for="sortSelect" class="sr-only">Sort</label>
+          <select id="sortSelect" aria-label="Sort content">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="title">Title A→Z</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="cards" class="cards" aria-live="polite"></div>
+    </section>
+
+
+
+    <section id="contact" class="contact">
+      <h2>Contact</h2>
+      <div class="contact-grid">
+        <a class="contact-card" target="_blank" rel="noopener" href="https://x.com/tshiralkar">
+          <span class="contact-title">X / Twitter</span>
+          <span class="contact-hint">@tshiralkar</span>
+        </a>
+        <a class="contact-card" target="_blank" rel="noopener" href="https://www.youtube.com/results?search_query=Trupti+Shiralkar">
+          <span class="contact-title">YouTube</span>
+          <span class="contact-hint">Talks &amp; Interviews</span>
+        </a>
+        <a class="contact-card" target="_blank" rel="noopener" href="https://www.linkedin.com/in/trupti-shiralkar-0a085a8/">
+          <span class="contact-title">LinkedIn</span>
+          <span class="contact-hint">Connect on LinkedIn</span>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-left">
+      <div>© <span id="year"></span> Trupti Shiralkar. All rights reserved.</div>
+    </div>
+    <div class="footer-right">
+      <a href="../Productivity_tracker/index.html" class="footer-tracker-link">🧠 Productivity Tracker</a>
+    </div>
+  </footer>
+
+  <script src="assets/script.js" type="module"></script>
+</body>
+</html>
