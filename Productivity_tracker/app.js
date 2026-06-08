@@ -679,10 +679,46 @@ function renderTracker(root) {
   loadTrackerData();
 }
 
+// ─── Routine User-Story Activity Definitions ────────────────────────────────
 const DEFAULT_ACTIVITIES = {
-  morning:   ['Morning sunlight exposure', 'Delayed caffeine intake', 'Cold shower'],
-  afternoon: ['Zone 2 cardio', 'NSDR session', 'Focused work block'],
-  evening:   ['Sunset viewing', 'Temperature drop prep', 'No screens 1h before bed']
+  morning:   [
+    'Hydration checklist',
+    'Delay caffeine (90 min)',
+    'Morning sunlight log',
+    'Deep work session'
+  ],
+  afternoon: [
+    'Lunch tracker',
+    'Afternoon walk',
+    'Nap / NSDR session',
+    'Afternoon exercise log',
+    'Dopamine reset'
+  ],
+  evening:   [
+    'Sunset light exposure',
+    'Dinner log',
+    'Wind-down checklist',
+    'Physiological sigh breathing',
+    'Sleep schedule tracking'
+  ]
+};
+
+// Rich metadata per activity (icons, subtitles, interaction type)
+const ACTIVITY_META = {
+  'Hydration checklist':         { icon:'💧', subtitle:'Hydration · Light · Exercise · Deep Work', type:'checklist',  items:['Drink 500ml water on waking','Get natural light exposure (5–30 min)','Move your body (stretch or walk)','Prepare for deep work block'] },
+  'Delay caffeine (90 min)':     { icon:'☕', subtitle:'Avoid caffeine for 90 min after waking',   type:'caffeine' },
+  'Morning sunlight log':        { icon:'🌤️', subtitle:'Track circadian rhythm alignment',           type:'sunlight' },
+  'Deep work session':           { icon:'🎯', subtitle:'Focus aids for peak cognitive performance',  type:'deepwork' },
+  'Lunch tracker':               { icon:'🥗', subtitle:'Log meal type to avoid energy crashes',      type:'lunch' },
+  'Afternoon walk':              { icon:'🚶', subtitle:'Reinforce circadian health with movement',   type:'walk',    label:'Afternoon Walk' },
+  'Nap / NSDR session':          { icon:'😴', subtitle:'Rest & Recharge — nap or NSDR',             type:'nsdr' },
+  'Afternoon exercise log':      { icon:'🏋️', subtitle:'Track type & duration of exercise',         type:'exercise' },
+  'Dopamine reset':              { icon:'🔄', subtitle:'Restore focus after long work streaks',      type:'dopamine' },
+  'Sunset light exposure':       { icon:'🌅', subtitle:'Optimise melatonin with sunset cues',        type:'sunset' },
+  'Dinner log':                  { icon:'🍽️', subtitle:'Log dinner to track sleep-affecting meals',  type:'dinner' },
+  'Wind-down checklist':         { icon:'🌙', subtitle:'Prepare environment for quality sleep',      type:'winddown', items:['Dim lights','Activate screen blue-light filter','Cool bedroom to 18–20°C'] },
+  'Physiological sigh breathing':{ icon:'🫁', subtitle:'2–3 cyclic sighs to relax before sleep',   type:'breathe' },
+  'Sleep schedule tracking':     { icon:'📊', subtitle:'Log bedtime & wake time for consistency',   type:'sleep' }
 };
 
 function getOrderedActivities(phase, customData) {
@@ -750,6 +786,230 @@ function triggerConfetti() {
   }
 }
 
+// ─── Rich Activity Card Builder ──────────────────────────────────────────────
+function buildActivityCard(phase, act, doc) {
+  const st   = doc.activities[act.id]?.status || 'pending';
+  const log  = doc.activities[act.id]?.log    || {};
+  const meta = ACTIVITY_META[act.name] || { icon:'✅', subtitle:'', type:'basic' };
+  const stClass = st === 'completed' ? 'completed' : st === 'skipped' ? 'skipped' : '';
+
+  // Build inner panel based on type
+  let panel = '';
+
+  if (meta.type === 'checklist') {
+    const checks = meta.items.map((item, i) => {
+      const checked = log[`check_${i}`] === true;
+      return `<label class="rt-check-label">
+        <input type="checkbox" class="rt-checkbox" ${checked ? 'checked' : ''}
+          onchange="window.updateChecklistItem('${phase}','${act.id}',${i},this.checked)">
+        <span>${item}</span>
+      </label>`;
+    }).join('');
+    panel = `<div class="rt-panel">${checks}</div>`;
+  }
+
+  if (meta.type === 'caffeine') {
+    const wakeStr = log.wake_time || '';
+    panel = `<div class="rt-panel">
+      <label class="rt-label">Wake-up time</label>
+      <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+        <input type="time" class="rt-input" value="${wakeStr}" id="caf-wake-${act.id}"
+          onchange="window.saveCaffeineWake('${phase}','${act.id}',this.value)">
+        <span id="caf-hint-${act.id}" class="rt-hint">${wakeStr ? caffeineHint(wakeStr) : 'Enter wake time to see earliest caffeine window'}</span>
+      </div>
+    </div>`;
+  }
+
+  if (meta.type === 'sunlight') {
+    const dur  = log.duration   || '';
+    const cond = log.condition  || '';
+    panel = `<div class="rt-panel">
+      <label class="rt-label">Duration</label>
+      <div class="rt-row">
+        <select class="rt-select" onchange="window.saveSunlight('${phase}','${act.id}','duration',this.value)">
+          <option value="">-- select --</option>
+          ${[5,10,15,20,25,30].map(v=>`<option value="${v}" ${dur==v?'selected':''}>≥${v} min</option>`).join('')}
+        </select>
+        <select class="rt-select" onchange="window.saveSunlight('${phase}','${act.id}','condition',this.value)">
+          <option value="">-- sky condition --</option>
+          ${['Sunny','Cloudy','Overcast'].map(c=>`<option value="${c}" ${cond===c?'selected':''}>☁️ ${c}</option>`).join('')}
+        </select>
+      </div>
+    </div>`;
+  }
+
+  if (meta.type === 'deepwork') {
+    panel = `<div class="rt-panel">
+      <p class="rt-label" style="margin-bottom:0.5rem">Focus Aid Menu</p>
+      <div class="rt-chip-row">
+        <button class="rt-chip" onclick="window.showFocusAid('screen')">🖥️ Screen Elevation Tip</button>
+        <button class="rt-chip" onclick="window.showFocusAid('binaural')">🎧 Binaural Beats (40Hz)</button>
+        <button class="rt-chip" onclick="window.showFocusAid('silence')">🔇 Silence Recommended</button>
+      </div>
+    </div>`;
+  }
+
+  if (meta.type === 'lunch' || meta.type === 'dinner') {
+    const saved = log.meal_type || '';
+    const opts  = meta.type === 'lunch'
+      ? ['Low-carb / High-protein','Balanced','High-carb']
+      : ['Balanced carbs + protein','Protein only','High-carb'];
+    const label = meta.type === 'lunch' ? 'Meal type' : 'Dinner type';
+    panel = `<div class="rt-panel">
+      <label class="rt-label">${label}</label>
+      <select class="rt-select" style="width:100%" onchange="window.saveMealType('${phase}','${act.id}',this.value)">
+        <option value="">-- choose --</option>
+        ${opts.map(o=>`<option value="${o}" ${saved===o?'selected':''}>${o}</option>`).join('')}
+      </select>
+      ${saved ? `<p class="rt-note">✅ Logged: <strong>${saved}</strong></p>` : ''}
+    </div>`;
+  }
+
+  if (meta.type === 'walk' || meta.type === 'exercise') {
+    const dur   = log.duration || '';
+    const where = log.where    || '';
+    const eType = log.ex_type  || '';
+    const isWalk = meta.type === 'walk';
+    panel = `<div class="rt-panel">
+      <div class="rt-row">
+        <div>
+          <label class="rt-label">Duration</label>
+          <select class="rt-select" onchange="window.saveActivityLog('${phase}','${act.id}','duration',this.value)">
+            <option value="">--</option>
+            ${[5,10,15,20,25,30].map(v=>`<option value="${v}" ${dur==v?'selected':''}>≥${v} min</option>`).join('')}
+          </select>
+        </div>
+        ${isWalk ? `
+        <div>
+          <label class="rt-label">Location</label>
+          <select class="rt-select" onchange="window.saveActivityLog('${phase}','${act.id}','where',this.value)">
+            <option value="">--</option>
+            <option value="Outdoors" ${where==='Outdoors'?'selected':''}>🌳 Outdoors</option>
+            <option value="Indoors"  ${where==='Indoors'?'selected':''}>🏠 Indoors</option>
+          </select>
+        </div>` : `
+        <div>
+          <label class="rt-label">Type</label>
+          <select class="rt-select" onchange="window.saveActivityLog('${phase}','${act.id}','ex_type',this.value)">
+            <option value="">--</option>
+            <option value="Strength"   ${eType==='Strength'?'selected':''}>💪 Strength</option>
+            <option value="Endurance"  ${eType==='Endurance'?'selected':''}>🏃 Endurance</option>
+            <option value="Mobility"   ${eType==='Mobility'?'selected':''}>🧘 Mobility</option>
+          </select>
+        </div>`}
+      </div>
+    </div>`;
+  }
+
+  if (meta.type === 'nsdr') {
+    const saved = log.rest_type || '';
+    panel = `<div class="rt-panel">
+      <label class="rt-label">Rest & Recharge Mode</label>
+      <div class="rt-chip-row">
+        <button class="rt-chip ${saved==='nap'?'rt-chip--active':''}" onclick="window.saveRestType('${phase}','${act.id}','nap')">😴 Nap (&lt;20 min)</button>
+        <button class="rt-chip ${saved==='nsdr'?'rt-chip--active':''}" onclick="window.saveRestType('${phase}','${act.id}','nsdr')">🧘 NSDR (10–30 min)</button>
+      </div>
+      ${saved ? `<p class="rt-note">✅ Selected: <strong>${saved === 'nap' ? 'Nap' : 'NSDR'}</strong></p>` : ''}
+    </div>`;
+  }
+
+  if (meta.type === 'dopamine') {
+    panel = `<div class="rt-panel">
+      <p style="font-size:0.85rem;color:var(--muted-color);margin-bottom:0.5rem">Feeling fatigued or unfocused after a long work session?</p>
+      <button class="rt-chip" onclick="window.showDopamineReset()">⚡ Start 10–30 min Dopamine Reset</button>
+    </div>`;
+  }
+
+  if (meta.type === 'sunset') {
+    const note = getSunsetNote();
+    panel = `<div class="rt-panel">
+      <p class="rt-note" style="margin-bottom:0.5rem">🌅 ${note}</p>
+      <p style="font-size:0.8rem;color:var(--muted-color)">Step outside for 5–10 minutes near sunset to support melatonin release.</p>
+    </div>`;
+  }
+
+  if (meta.type === 'winddown') {
+    const checks = meta.items.map((item, i) => {
+      const checked = log[`check_${i}`] === true;
+      return `<label class="rt-check-label">
+        <input type="checkbox" class="rt-checkbox" ${checked ? 'checked' : ''}
+          onchange="window.updateChecklistItem('${phase}','${act.id}',${i},this.checked)">
+        <span>${item}</span>
+      </label>`;
+    }).join('');
+    panel = `<div class="rt-panel">${checks}</div>`;
+  }
+
+  if (meta.type === 'breathe') {
+    panel = `<div class="rt-panel">
+      <p style="font-size:0.85rem;color:var(--muted-color);margin-bottom:0.5rem">Guided 2–3 cyclic sighs to calm your nervous system.</p>
+      <button class="rt-chip" onclick="window.showBreathingGuide()">🫁 Start Breathing Exercise</button>
+    </div>`;
+  }
+
+  if (meta.type === 'sleep') {
+    const bed  = log.bedtime   || '';
+    const wake = log.wake_time || '';
+    panel = `<div class="rt-panel">
+      <div class="rt-row">
+        <div>
+          <label class="rt-label">Bedtime</label>
+          <input type="time" class="rt-input" value="${bed}" onchange="window.saveSleepLog('${phase}','${act.id}','bedtime',this.value)">
+        </div>
+        <div>
+          <label class="rt-label">Wake-up time</label>
+          <input type="time" class="rt-input" value="${wake}" onchange="window.saveSleepLog('${phase}','${act.id}','wake_time',this.value)">
+        </div>
+      </div>
+      <div id="sleep-chart-${act.id}" style="margin-top:0.75rem"></div>
+    </div>`;
+  }
+
+  return `
+    <div id="card-${phase}-${act.id}"
+         class="activity-card ${stClass}"
+         draggable="true"
+         ondragstart="handleCardDragStart(event,'${phase}','${act.id}')"
+         ondragend="this.classList.remove('dragging-card')"
+         ondragover="handleCardDragOver(event)"
+         ondragleave="handleCardDragLeave(event)"
+         ondrop="handleCardDrop(event,'${phase}','${act.id}')">
+      <div style="width:100%;">
+        <div style="display:flex;align-items:flex-start;gap:0.75rem;">
+          <div class="card-drag-handle" title="Drag to reorder">⋮⋮</div>
+          <div class="rt-icon">${meta.icon}</div>
+          <div style="flex:1">
+            <strong style="font-size:0.95rem">${act.name}</strong>
+            <p style="font-size:0.78rem;color:var(--muted-color);margin-top:0.15rem">${meta.subtitle}</p>
+            <div class="activity-actions">
+              <button onclick="updateActivity('${phase}','${act.id}','completed')" class="btn-sm done">✓ Done</button>
+              <button onclick="updateActivity('${phase}','${act.id}','skipped')"   class="btn-sm skip">✗ Skip</button>
+              <button onclick="updateActivity('${phase}','${act.id}','pending')"   class="btn-sm">↺ Reset</button>
+            </div>
+          </div>
+        </div>
+        ${panel}
+      </div>
+    </div>`;
+}
+
+function caffeineHint(wakeTime) {
+  try {
+    const [h, m] = wakeTime.split(':').map(Number);
+    const total  = h * 60 + m + 90;
+    const hh     = Math.floor(total / 60) % 24;
+    const mm     = total % 60;
+    return `☕ Earliest caffeine: <strong>${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}</strong>`;
+  } catch { return ''; }
+}
+
+function getSunsetNote() {
+  const hour = new Date().getHours();
+  if (hour >= 17 && hour <= 19) return 'It\'s near sunset — perfect time to step outside now!';
+  if (hour > 19)  return 'You may have missed today\'s sunset. Mark for tomorrow!';
+  return 'Reminder set — check back near 5–7 PM for sunset light cues.';
+}
+
 async function loadTrackerData() {
   const grid = document.getElementById('tracker-grid');
   if (!grid) return;
@@ -760,44 +1020,41 @@ async function loadTrackerData() {
     const { data: docs, error } = await dbGetTrackersForDate(targetDate);
     if (error) throw error;
 
+    // Dopamine reset: check if any afternoon work streak > 3h logged
+    const afDoc = (docs || []).find(d => d.phase === 'afternoon') || { activities: {} };
+    const contWorkHours = afDoc.activities['work_streak_hours'] || 0;
+    const showDopamineAlert = Number(contWorkHours) > 3;
+
     let html = '';
+    const phaseLabels = { morning: '🌅 Morning', afternoon: '☀️ Afternoon', evening: '🌙 Evening' };
+
     ['morning', 'afternoon', 'evening'].forEach(phase => {
       let doc = (docs || []).find(d => d.phase === phase) || { phase, activities: {}, completion_rate: 0 };
       const acts = getOrderedActivities(phase, customData);
+      const actHtml = acts.map(act => buildActivityCard(phase, act, doc)).join('');
 
-      const actHtml = acts.map(act => {
-        const st = doc.activities[act.id]?.status || 'pending';
-        return `
-          <div id="card-${phase}-${act.id}"
-               class="activity-card ${st === 'completed' ? 'completed' : st === 'skipped' ? 'skipped' : ''}"
-               draggable="true"
-               ondragstart="handleCardDragStart(event,'${phase}','${act.id}')"
-               ondragend="this.classList.remove('dragging-card')"
-               ondragover="handleCardDragOver(event)"
-               ondragleave="handleCardDragLeave(event)"
-               ondrop="handleCardDrop(event,'${phase}','${act.id}')">
-            <div style="display:flex;align-items:center;width:100%;">
-              <div class="card-drag-handle" title="Drag to reorder">⋮⋮</div>
-              <div style="flex:1">
-                <strong>${act.name}</strong>
-                <div class="activity-actions">
-                  <button onclick="updateActivity('${phase}','${act.id}','completed')" class="btn-sm done">Done</button>
-                  <button onclick="updateActivity('${phase}','${act.id}','skipped')"   class="btn-sm skip">Skip</button>
-                  <button onclick="updateActivity('${phase}','${act.id}','pending')"   class="btn-sm">Reset</button>
-                </div>
-              </div>
-            </div>
-          </div>`;
-      }).join('');
+      const dopamineAlert = (phase === 'afternoon' && showDopamineAlert)
+        ? `<div class="rt-alert rt-alert--warning">
+             ⚠️ You've logged &gt;3 hours of continuous work. Try a <strong>10–30 min dopamine reset</strong> to restore focus.
+           </div>`
+        : '';
 
       html += `
         <div class="tracker-tile ${phase}-tile">
-          <h2 class="text-2xl mb-4" style="text-transform:capitalize">${phase}</h2>
-          <div class="progress-bg"><div class="progress-bar" style="width:${doc.completion_rate}%"></div></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+            <h2 class="text-2xl" style="text-transform:capitalize">${phaseLabels[phase]}</h2>
+            <span class="rt-pct" id="pct-${phase}">${doc.completion_rate}%</span>
+          </div>
+          <div class="progress-bg"><div class="progress-bar" id="bar-${phase}" style="width:${doc.completion_rate}%"></div></div>
+          ${dopamineAlert}
           <div style="margin-top:1rem">${actHtml}</div>
         </div>`;
     });
     grid.innerHTML = html;
+
+    // Render sleep chart if sleep log exists
+    renderSleepChart();
+
   } catch (err) {
     console.error('Tracker load error:', err);
     grid.innerHTML = `<div class="alert alert-error" style="grid-column:1/-1">Error loading data: ${err.message}</div>`;
@@ -846,6 +1103,236 @@ function calculateRate(activities, total) {
   const done = Object.values(activities).filter(a => a.status === 'completed').length;
   return total > 0 ? Math.round((done / total) * 100) : 0;
 }
+
+// ─── Activity Log Save Helpers ───────────────────────────────────────────────
+async function saveActivityField(phase, actId, fields) {
+  try {
+    const { data: docs } = await dbGetTrackersForDate(selectedDate);
+    let existing   = (docs || []).find(d => d.phase === phase);
+    let activities = existing ? { ...existing.activities } : {};
+    const prev     = activities[actId] || { status: 'pending', log: {} };
+    activities[actId] = { ...prev, log: { ...(prev.log || {}), ...fields } };
+    const tileEl   = document.querySelector(`.${phase}-tile`);
+    const domTotal = tileEl ? tileEl.querySelectorAll('.activity-card').length : DEFAULT_ACTIVITIES[phase].length;
+    const { error } = await dbUpdateTrackerActivity(phase, selectedDate, activities, calculateRate(activities, domTotal));
+    if (error) throw error;
+  } catch (err) {
+    showToast('Save failed: ' + (err.message || String(err)), 'error');
+  }
+}
+
+window.updateChecklistItem = async function(phase, actId, idx, checked) {
+  await saveActivityField(phase, actId, { [`check_${idx}`]: checked });
+};
+
+window.saveCaffeineWake = async function(phase, actId, wakeTime) {
+  const hint = document.getElementById(`caf-hint-${actId}`);
+  if (hint) hint.innerHTML = caffeineHint(wakeTime);
+  await saveActivityField(phase, actId, { wake_time: wakeTime });
+};
+
+window.saveSunlight = async function(phase, actId, field, value) {
+  await saveActivityField(phase, actId, { [field]: value });
+  showToast('☀️ Sunlight log updated!', 'success');
+};
+
+window.saveMealType = async function(phase, actId, value) {
+  await saveActivityField(phase, actId, { meal_type: value });
+  showToast('🍽️ Meal logged!', 'success');
+};
+
+window.saveActivityLog = async function(phase, actId, field, value) {
+  await saveActivityField(phase, actId, { [field]: value });
+};
+
+window.saveRestType = async function(phase, actId, restType) {
+  await saveActivityField(phase, actId, { rest_type: restType });
+  showToast(restType === 'nap' ? '😴 Nap scheduled!' : '🧘 NSDR session selected!', 'success');
+  loadTrackerData(); // re-render to show chip highlight
+};
+
+window.saveSleepLog = async function(phase, actId, field, value) {
+  await saveActivityField(phase, actId, { [field]: value });
+  setTimeout(() => renderSleepChart(), 300);
+};
+
+// ─── Sleep Consistency Weekly Chart ──────────────────────────────────────────
+async function renderSleepChart() {
+  const containers = document.querySelectorAll('[id^="sleep-chart-"]');
+  if (!containers.length) return;
+
+  try {
+    const { data: docs } = await dbGetAllTrackers();
+    const sleepActs = (docs || []).filter(d => d.phase === 'evening');
+
+    // Collect last 7 days of bedtime/wake logs
+    const entries = [];
+    sleepActs.forEach(d => {
+      const acts = Object.values(d.activities || {});
+      acts.forEach(a => {
+        if (a.log && (a.log.bedtime || a.log.wake_time)) {
+          entries.push({ date: d.date, bed: a.log.bedtime || '', wake: a.log.wake_time || '' });
+        }
+      });
+    });
+
+    const last7 = entries.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7).reverse();
+
+    containers.forEach(el => {
+      if (!last7.length) {
+        el.innerHTML = '<p class="rt-note" style="text-align:center">Log bedtime & wake time to see your weekly chart here.</p>';
+        return;
+      }
+      const barHtml = last7.map(e => {
+        const label = e.date.slice(5); // MM-DD
+        return `
+          <div class="sleep-bar-col">
+            <div class="sleep-bar-wrap">
+              <div class="sleep-bar" title="Bed: ${e.bed || '?'} | Wake: ${e.wake || '?'}"></div>
+            </div>
+            <span class="sleep-bar-label">${label}</span>
+            <span class="sleep-bar-sub">${e.bed || '—'}</span>
+          </div>`;
+      }).join('');
+      el.innerHTML = `
+        <p class="rt-label" style="margin-bottom:0.5rem">📊 Sleep Consistency (last 7 days, ±1h target)</p>
+        <div class="sleep-chart">${barHtml}</div>`;
+    });
+  } catch (e) { console.warn('Sleep chart error:', e); }
+}
+
+// ─── Modal System ─────────────────────────────────────────────────────────────
+function showModal(title, bodyHTML, footer = '') {
+  document.getElementById('rt-modal-overlay')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'rt-modal-overlay';
+  overlay.className = 'rt-modal-overlay';
+  overlay.innerHTML = `
+    <div class="rt-modal" role="dialog" aria-modal="true">
+      <div class="rt-modal-header">
+        <h3 class="rt-modal-title">${title}</h3>
+        <button class="rt-modal-close" onclick="document.getElementById('rt-modal-overlay').remove()" aria-label="Close">&times;</button>
+      </div>
+      <div class="rt-modal-body">${bodyHTML}</div>
+      ${footer ? `<div class="rt-modal-footer">${footer}</div>` : ''}
+    </div>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('rt-modal-overlay--visible'));
+}
+
+// ─── Focus Aid Modals ─────────────────────────────────────────────────────────
+window.showFocusAid = function(type) {
+  const aids = {
+    screen: {
+      title: '🖥️ Screen Elevation Tip',
+      body: `<div class="rt-guide-step">
+        <p>Elevate your monitor so the <strong>top third of the screen is at eye level</strong>. This keeps your gaze slightly upward, which promotes alertness and focus.</p>
+        <ul class="rt-guide-list">
+          <li>Use a monitor stand or stack books underneath</li>
+          <li>Avoid slouching — sit back with a straight spine</li>
+          <li>Distance: arm-length from screen (~60–70 cm)</li>
+        </ul>
+      </div>`
+    },
+    binaural: {
+      title: '🎧 Binaural Beats (40Hz)',
+      body: `<div class="rt-guide-step">
+        <p>40Hz gamma binaural beats are associated with <strong>enhanced focus, concentration, and deep work states</strong>.</p>
+        <ul class="rt-guide-list">
+          <li>Use stereo headphones (required for binaural effect)</li>
+          <li>Play at low-to-moderate volume</li>
+          <li>Search: "40Hz binaural beats" on YouTube or Spotify</li>
+          <li>Session: 25–90 minutes for deep work blocks</li>
+        </ul>
+        <div class="rt-alert rt-alert--info" style="margin-top:0.75rem">Not recommended for people with epilepsy or photosensitivity.</div>
+      </div>`
+    },
+    silence: {
+      title: '🔇 Silence Recommended',
+      body: `<div class="rt-guide-step">
+        <p>Silence is one of the most powerful environments for deep cognitive work.</p>
+        <ul class="rt-guide-list">
+          <li>Turn off notifications on all devices</li>
+          <li>Use earplugs or noise-cancelling headphones without music</li>
+          <li>Communicate "do not disturb" to those around you</li>
+          <li>Combine with a 25–90 min uninterrupted focus block</li>
+        </ul>
+      </div>`
+    }
+  };
+  const aid = aids[type];
+  if (aid) showModal(aid.title, aid.body);
+};
+
+// ─── Dopamine Reset Modal ─────────────────────────────────────────────────────
+window.showDopamineReset = function() {
+  showModal('⚡ Dopamine Reset Protocol', `
+    <div class="rt-guide-step">
+      <p>After extended focus, your dopamine levels drop. A <strong>10–30 minute reset</strong> restores motivation and sharpens focus for the next block.</p>
+      <p class="rt-label" style="margin-top:0.75rem;margin-bottom:0.5rem">Choose a reset activity:</p>
+      <div class="rt-chip-row" style="flex-wrap:wrap">
+        <span class="rt-chip rt-chip--static">🚶 Walk (no phone)</span>
+        <span class="rt-chip rt-chip--static">🌳 Sit outdoors</span>
+        <span class="rt-chip rt-chip--static">😮‍💨 Non-sleep deep rest</span>
+        <span class="rt-chip rt-chip--static">👁️ View nature / horizon</span>
+        <span class="rt-chip rt-chip--static">☕ Mindful rest (no screens)</span>
+      </div>
+      <div class="rt-alert rt-alert--info" style="margin-top:0.75rem">
+        ⏱️ Set a timer for 10–30 minutes. Avoid social media or stimulating content during reset.
+      </div>
+    </div>
+  `);
+};
+
+// ─── Breathing Exercise Guide ─────────────────────────────────────────────────
+window.showBreathingGuide = function() {
+  let step = 0;
+  const steps = [
+    { title: 'Step 1 — Prepare', icon: '🫁', desc: 'Sit comfortably or lie down. Rest your hands on your belly. Close your eyes and relax your jaw.' },
+    { title: 'Step 2 — Double Inhale', icon: '👃', desc: 'Take a <strong>deep inhale through your nose</strong>. Then, without exhaling, take a <strong>second sharp sniff</strong> to fully inflate the lungs.' },
+    { title: 'Step 3 — Long Exhale', icon: '😮‍💨', desc: 'Release all air through your mouth in one <strong>long, slow exhale</strong> (4–6 seconds). Feel tension leave with each breath.' },
+    { title: 'Step 4 — Repeat', icon: '🔄', desc: 'Repeat steps 2–3 for <strong>2–3 cycles total</strong>. With each cycle, notice your heart rate slowing and body relaxing.' },
+    { title: '✅ Complete!', icon: '🌙', desc: 'Excellent. Your nervous system is now in a calmer state. You should feel more relaxed and ready for sleep.' }
+  ];
+
+  function renderStep() {
+    const s = steps[step];
+    const bodyEl = document.querySelector('#rt-modal-overlay .rt-modal-body');
+    const fEl    = document.querySelector('#rt-modal-overlay .rt-modal-footer');
+    if (!bodyEl) return;
+    bodyEl.innerHTML = `
+      <div class="rt-breathe-step">
+        <div class="rt-breathe-icon">${s.icon}</div>
+        <h4 class="rt-breathe-title">${s.title}</h4>
+        <p class="rt-breathe-desc">${s.desc}</p>
+        <div class="rt-breathe-progress">
+          ${steps.map((_, i) => `<span class="rt-bp-dot ${i === step ? 'rt-bp-dot--active' : i < step ? 'rt-bp-dot--done' : ''}"></span>`).join('')}
+        </div>
+      </div>`;
+    if (fEl) fEl.innerHTML = `
+      ${step > 0 ? `<button class="btn-secondary" onclick="window._breatheStep(${step-1})">← Back</button>` : '<span></span>'}
+      ${step < steps.length - 1
+        ? `<button class="btn-primary" onclick="window._breatheStep(${step+1})">Next →</button>`
+        : `<button class="btn-primary" onclick="document.getElementById('rt-modal-overlay').remove()">Done 🌙</button>`}`;
+  }
+
+  window._breatheStep = function(n) { step = n; renderStep(); };
+
+  showModal('🫁 Physiological Sigh Breathing', '', `<span></span><button class="btn-primary" onclick="window._breatheStep(1)">Next →</button>`);
+  step = 0;
+  const bodyEl = document.querySelector('#rt-modal-overlay .rt-modal-body');
+  const s = steps[0];
+  if (bodyEl) bodyEl.innerHTML = `
+    <div class="rt-breathe-step">
+      <div class="rt-breathe-icon">${s.icon}</div>
+      <h4 class="rt-breathe-title">${s.title}</h4>
+      <p class="rt-breathe-desc">${s.desc}</p>
+      <div class="rt-breathe-progress">
+        ${steps.map((_, i) => `<span class="rt-bp-dot ${i === 0 ? 'rt-bp-dot--active' : ''}"></span>`).join('')}
+      </div>
+    </div>`;
+};
 
 // ─── Summary / Analytics Page ────────────────────────────────────────────────
 async function renderSummary(root) {
