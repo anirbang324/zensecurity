@@ -6,6 +6,8 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_
 // -- Local Storage Keys for Anonymous Users --
 const ANON_TRACKERS_KEY = 'pt_anon_trackers';
 const ANON_CUSTOM_KEY   = 'pt_anon_custom_activities';
+const ANON_SUMMARIES_KEY = 'pt_anon_custom_summaries';
+const ANON_USER_SAMPLES_KEY = 'pt_anon_user_samples';
 
 // -- State --
 let currentUser  = null;
@@ -39,6 +41,18 @@ function getAnonCustom() {
   catch { return []; }
 }
 function saveAnonCustom(c) { localStorage.setItem(ANON_CUSTOM_KEY, JSON.stringify(c)); }
+
+function getAnonSummaries() {
+  try { return JSON.parse(localStorage.getItem(ANON_SUMMARIES_KEY) || '[]'); }
+  catch { return []; }
+}
+function saveAnonSummaries(s) { localStorage.setItem(ANON_SUMMARIES_KEY, JSON.stringify(s)); }
+
+function getUserSamples() {
+  try { return JSON.parse(localStorage.getItem(ANON_USER_SAMPLES_KEY) || '[]'); }
+  catch { return []; }
+}
+function saveUserSamples(s) { localStorage.setItem(ANON_USER_SAMPLES_KEY, JSON.stringify(s)); }
 
 // ─── Unified DB / Local-Storage API ────────────────────────────────────────
 async function dbGetCustomTrackers() {
@@ -154,9 +168,9 @@ function updateNav() {
   const userDiv       = document.getElementById('nav-user');
   const mobileUserDiv = document.getElementById('nav-mobile-user');
   const html = currentUser
-    ? `<span style="font-size:0.875rem;font-weight:600;color:var(--muted-color);">${currentUser.isAnonymous ? 'Guest' : currentUser.email}</span>
-       <button onclick="logout()" class="btn-sm" style="color:#f87171;font-weight:600;border-color:rgba(239,68,68,0.3);background:rgba(239,68,68,0.1);">Log Out</button>`
-    : `<a href="#login" class="btn-primary" style="padding:0.25rem 0.75rem;font-size:0.875rem;">Sign In</a>`;
+    ? `<span style="font-size:0.82rem;font-weight:500;color:var(--muted-color);">${currentUser.isAnonymous ? 'Guest' : currentUser.email}</span>
+       <button onclick="logout()" class="nav-logout-btn">Log Out</button>`
+    : `<a href="#login" class="btn-primary" style="padding:0.4rem 1rem;font-size:0.82rem;border-radius:999px;">Sign In</a>`;
   if (userDiv)       userDiv.innerHTML       = html;
   if (mobileUserDiv) mobileUserDiv.innerHTML = html;
 }
@@ -217,7 +231,7 @@ async function route() {
       case 'tracker': renderTracker(root); break;
       case 'summary': await renderSummary(root); break;
       case 'custom':  renderCustom(root); break;
-      case 'samples': renderSamples(root); break;
+      case 'samples': await renderSamples(root); break;
       case 'about':   renderAbout(root); break;
       case 'privacy': renderPrivacy(root); break;
       case 'contact': renderContact(root); break;
@@ -490,7 +504,7 @@ function renderLogin(root) {
             <div class="form-group" style="position:relative">
               <label for="auth-password">Password</label>
               <input type="password" id="auth-password" autocomplete="${isReg ? 'new-password' : 'current-password'}"
-                placeholder="${isReg ? 'Min. 6 characters' : 'Your password'}" required/>
+                placeholder="${isReg ? 'Min. 12 characters' : 'Your password'}" required/>
               <button type="button" id="pw-toggle" class="pw-toggle" aria-label="Toggle password visibility">👁</button>
               <span class="field-error" id="pw-err"></span>
             </div>
@@ -568,8 +582,8 @@ function renderLogin(root) {
       setFieldError('pw-err', 'Password is required.');
       document.getElementById('auth-password')?.classList.add('input-error');
       ok = false;
-    } else if (authMode === 'register' && password.length < 6) {
-      setFieldError('pw-err', 'Password must be at least 6 characters.');
+    } else if (authMode === 'register' && password.length < 12) {
+      setFieldError('pw-err', 'Password must be at least 12 characters.');
       document.getElementById('auth-password')?.classList.add('input-error');
       ok = false;
     }
@@ -609,10 +623,16 @@ function renderLogin(root) {
     setLoading(true);
     try {
       const result = await register(email, password);
-      if (result && result.autoLogin) return; // route() already handles redirect
+      if (result && result.autoLogin) {
+        // Ensure redirect actually triggers even if hash is already #app
+        await route();
+        return;
+      }
       setLoading(false);
+      // Switch to sign-in mode immediately so user can login after confirming email
+      authMode = 'signin';
+      render();
       setStatus('✅ Account created! Check your email to confirm your address, then sign in.', 'success');
-      setTimeout(() => { authMode = 'signin'; render(); setStatus('Account created! Please sign in.', 'success'); }, 3000);
     } catch (err) {
       setLoading(false);
       const msg = err.message || '';
@@ -1353,131 +1373,482 @@ async function renderSummary(root) {
     const dates = Object.keys(dateGroups).sort((a, b) => b.localeCompare(a));
     const totalDays = dates.length;
 
+    // Build analytics HTML (even if no tracking data, still show notes section)
+    let analyticsHtml = '';
+
     if (totalDays === 0) {
-      document.getElementById('summary-content').innerHTML =
-        '<div class="alert text-center">No data recorded yet. Start tracking your activities to see analysis!</div>';
-      return;
-    }
-
-    // Best phase
-    const phaseScores = { morning: { sum: 0, count: 0 }, afternoon: { sum: 0, count: 0 }, evening: { sum: 0, count: 0 } };
-    (docs || []).forEach(d => { if (phaseScores[d.phase]) { phaseScores[d.phase].sum += parseFloat(d.completion_rate || 0); phaseScores[d.phase].count++; } });
-    let bestPhase = 'N/A', maxAvg = -1;
-    for (const p in phaseScores) {
-      if (phaseScores[p].count > 0) {
-        const avg = phaseScores[p].sum / phaseScores[p].count;
-        if (avg > maxAvg) { maxAvg = avg; bestPhase = p.charAt(0).toUpperCase() + p.slice(1); }
+      analyticsHtml = '<div class="alert text-center mb-8">No tracking data recorded yet. Start tracking your activities to see analytics!</div>';
+    } else {
+      // Best phase
+      const phaseScores = { morning: { sum: 0, count: 0 }, afternoon: { sum: 0, count: 0 }, evening: { sum: 0, count: 0 } };
+      (docs || []).forEach(d => { if (phaseScores[d.phase]) { phaseScores[d.phase].sum += parseFloat(d.completion_rate || 0); phaseScores[d.phase].count++; } });
+      let bestPhase = 'N/A', maxAvg = -1;
+      for (const p in phaseScores) {
+        if (phaseScores[p].count > 0) {
+          const avg = phaseScores[p].sum / phaseScores[p].count;
+          if (avg > maxAvg) { maxAvg = avg; bestPhase = p.charAt(0).toUpperCase() + p.slice(1); }
+        }
       }
+
+      let totalRate = 0;
+      let recentHtml = '';
+      dates.slice(0, 7).forEach(date => {
+        const dayDocs = dateGroups[date];
+        const avg = dayDocs.reduce((acc, c) => acc + parseFloat(c.completion_rate || 0), 0) / dayDocs.length;
+        recentHtml += `
+          <div style="margin-bottom:1rem">
+            <div style="display:flex;justify-content:space-between;font-size:0.875rem;margin-bottom:0.25rem;">
+              <strong>${date}</strong>
+              <span style="color:${avg >= 80 ? 'var(--accent-color)' : 'inherit'}">${Math.round(avg)}%</span>
+            </div>
+            <div class="progress-bg"><div class="progress-bar" style="width:${avg}%"></div></div>
+          </div>`;
+      });
+      dates.forEach(date => {
+        const dayDocs = dateGroups[date];
+        totalRate += dayDocs.reduce((acc, c) => acc + parseFloat(c.completion_rate || 0), 0) / dayDocs.length;
+      });
+      const overallAvg = Math.round(totalRate / totalDays);
+
+      analyticsHtml = `
+        <div class="grid-3 mb-8">
+          <div class="tracker-tile text-center" style="display:flex;flex-direction:column;justify-content:center;">
+            <h3 class="font-bold mb-2">Days Tracked</h3>
+            <p class="text-4xl" style="color:var(--accent-color)">${totalDays}</p>
+          </div>
+          <div class="tracker-tile text-center" style="display:flex;flex-direction:column;justify-content:center;">
+            <h3 class="font-bold mb-2">Overall Consistency</h3>
+            <p class="text-4xl" style="color:var(--accent-color)">${overallAvg}%</p>
+          </div>
+          <div class="tracker-tile text-center" style="display:flex;flex-direction:column;justify-content:center;">
+            <h3 class="font-bold mb-2">Strongest Phase</h3>
+            <p class="text-3xl" style="color:var(--accent-color);font-weight:bold">${bestPhase}</p>
+          </div>
+        </div>
+        <div class="tracker-tile mb-8" style="max-width:800px;margin:0 auto;">
+          <h2 class="text-2xl mb-6 border-b pb-2">Last 7 Active Days</h2>
+          ${recentHtml}
+        </div>`;
     }
 
-    let totalRate = 0;
-    let recentHtml = '';
-    dates.slice(0, 7).forEach(date => {
-      const dayDocs = dateGroups[date];
-      const avg = dayDocs.reduce((acc, c) => acc + parseFloat(c.completion_rate || 0), 0) / dayDocs.length;
-      recentHtml += `
-        <div style="margin-bottom:1rem">
-          <div style="display:flex;justify-content:space-between;font-size:0.875rem;margin-bottom:0.25rem;">
-            <strong>${date}</strong>
-            <span style="color:${avg >= 80 ? 'var(--accent-color)' : 'inherit'}">${Math.round(avg)}%</span>
-          </div>
-          <div class="progress-bg"><div class="progress-bar" style="width:${avg}%"></div></div>
-        </div>`;
-    });
-    dates.forEach(date => {
-      const dayDocs = dateGroups[date];
-      totalRate += dayDocs.reduce((acc, c) => acc + parseFloat(c.completion_rate || 0), 0) / dayDocs.length;
-    });
-    const overallAvg = Math.round(totalRate / totalDays);
+    // Custom Summaries / Notes section
+    const summaries = getAnonSummaries();
+    const notesHtml = buildCustomSummariesHtml(summaries);
 
-    document.getElementById('summary-content').innerHTML = `
-      <div class="grid-3 mb-8">
-        <div class="tracker-tile text-center" style="display:flex;flex-direction:column;justify-content:center;">
-          <h3 class="font-bold mb-2">Days Tracked</h3>
-          <p class="text-4xl" style="color:var(--accent-color)">${totalDays}</p>
-        </div>
-        <div class="tracker-tile text-center" style="display:flex;flex-direction:column;justify-content:center;">
-          <h3 class="font-bold mb-2">Overall Consistency</h3>
-          <p class="text-4xl" style="color:var(--accent-color)">${overallAvg}%</p>
-        </div>
-        <div class="tracker-tile text-center" style="display:flex;flex-direction:column;justify-content:center;">
-          <h3 class="font-bold mb-2">Strongest Phase</h3>
-          <p class="text-3xl" style="color:var(--accent-color);font-weight:bold">${bestPhase}</p>
-        </div>
-      </div>
-      <div class="tracker-tile" style="max-width:800px;margin:0 auto;">
-        <h2 class="text-2xl mb-6 border-b pb-2">Last 7 Active Days</h2>
-        ${recentHtml}
-      </div>`;
+    document.getElementById('summary-content').innerHTML = analyticsHtml + notesHtml;
+    attachSummaryListeners();
+
   } catch (err) {
     document.getElementById('summary-content').innerHTML =
       `<div class="alert alert-error">Error loading analysis: ${err.message}</div>`;
   }
 }
 
-// ─── Custom Tracker Page ─────────────────────────────────────────────────────
+// ─── Custom Summaries / Journal Notes ────────────────────────────────────────
+const SUMMARY_CATEGORIES = [
+  { value: 'reflection', label: '🪞 Reflection', color: '#8b5cf6' },
+  { value: 'goal', label: '🎯 Goal', color: '#3b82f6' },
+  { value: 'win', label: '🏆 Win', color: '#10b981' },
+  { value: 'challenge', label: '⚡ Challenge', color: '#f59e0b' },
+  { value: 'insight', label: '💡 Insight', color: '#ec4899' },
+  { value: 'other', label: '📝 Other', color: '#6b7280' },
+];
+
+function buildCustomSummariesHtml(summaries) {
+  const categoryOptions = SUMMARY_CATEGORIES.map(c =>
+    `<option value="${c.value}">${c.label}</option>`
+  ).join('');
+
+  const sortedSummaries = [...summaries].sort((a, b) => b.createdAt - a.createdAt);
+
+  const notesListHtml = sortedSummaries.length === 0
+    ? `<div class="summary-notes-empty">
+         <span class="summary-notes-empty-icon">📝</span>
+         <p>No notes yet. Add your first reflection, goal, or insight above!</p>
+       </div>`
+    : sortedSummaries.map(note => {
+        const cat = SUMMARY_CATEGORIES.find(c => c.value === note.category) || SUMMARY_CATEGORIES[5];
+        const date = new Date(note.createdAt);
+        const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        return `
+          <div class="summary-note-card">
+            <div class="summary-note-header">
+              <div class="summary-note-meta">
+                <span class="summary-note-category" style="--cat-color:${cat.color}">${cat.label}</span>
+                <span class="summary-note-date">${dateStr} · ${timeStr}</span>
+              </div>
+              <button class="summary-note-delete" onclick="window.deleteCustomSummary('${note.id}')" title="Delete note">×</button>
+            </div>
+            ${note.title ? `<h4 class="summary-note-title">${escapeHtml(note.title)}</h4>` : ''}
+            <p class="summary-note-body">${escapeHtml(note.content)}</p>
+          </div>`;
+      }).join('');
+
+  return `
+    <div class="summary-notes-section" style="max-width:800px;margin:0 auto;">
+      <div class="summary-notes-header">
+        <div>
+          <h2 class="text-2xl" style="display:flex;align-items:center;gap:0.5rem;">📓 My Notes & Reflections</h2>
+          <p class="text-gray" style="font-size:0.85rem;margin-top:0.25rem;">Track your thoughts, set goals, and celebrate wins.</p>
+        </div>
+        <span class="summary-notes-count">${summaries.length} ${summaries.length === 1 ? 'note' : 'notes'}</span>
+      </div>
+
+      <!-- Add note form -->
+      <div class="summary-add-form" id="summary-add-form">
+        <div class="summary-add-row">
+          <select id="summary-category" class="summary-add-select">
+            ${categoryOptions}
+          </select>
+          <input type="text" id="summary-title" class="summary-add-title" placeholder="Title (optional)" maxlength="100" />
+        </div>
+        <textarea id="summary-content-input" class="summary-add-textarea" placeholder="Write your reflection, goal, or insight…" rows="3" maxlength="1000"></textarea>
+        <div class="summary-add-footer">
+          <span class="summary-char-count" id="summary-char-count">0 / 1000</span>
+          <button class="btn-primary summary-add-btn" id="summary-add-btn" onclick="window.addCustomSummary()">+ Add Note</button>
+        </div>
+      </div>
+
+      <!-- Notes list -->
+      <div class="summary-notes-list" id="summary-notes-list">
+        ${notesListHtml}
+      </div>
+    </div>`;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function attachSummaryListeners() {
+  const textarea = document.getElementById('summary-content-input');
+  const charCount = document.getElementById('summary-char-count');
+  if (textarea && charCount) {
+    textarea.addEventListener('input', () => {
+      charCount.textContent = `${textarea.value.length} / 1000`;
+    });
+  }
+}
+
+window.addCustomSummary = function() {
+  const category = document.getElementById('summary-category')?.value || 'reflection';
+  const title = (document.getElementById('summary-title')?.value || '').trim();
+  const content = (document.getElementById('summary-content-input')?.value || '').trim();
+
+  if (!content) {
+    showToast('Please write something before adding a note.', 'error');
+    return;
+  }
+
+  const summaries = getAnonSummaries();
+  const newNote = {
+    id: 'note-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+    category,
+    title,
+    content,
+    createdAt: Date.now(),
+    userId: currentUser ? currentUser.id : 'guest'
+  };
+  summaries.push(newNote);
+  saveAnonSummaries(summaries);
+
+  // Clear form
+  document.getElementById('summary-title').value = '';
+  document.getElementById('summary-content-input').value = '';
+  document.getElementById('summary-char-count').textContent = '0 / 1000';
+
+  // Re-render notes list
+  const notesList = document.getElementById('summary-notes-list');
+  if (notesList) {
+    notesList.innerHTML = buildCustomSummariesHtml(summaries).match(/<div class="summary-notes-list"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*$/)?.[1] || '';
+    // Simpler: just re-render the entire section
+    refreshSummaryNotes();
+  }
+
+  const cat = SUMMARY_CATEGORIES.find(c => c.value === category);
+  showToast(`${cat ? cat.label : '📝'} Note added!`, 'success');
+};
+
+window.deleteCustomSummary = function(noteId) {
+  const summaries = getAnonSummaries().filter(s => s.id !== noteId);
+  saveAnonSummaries(summaries);
+  refreshSummaryNotes();
+  showToast('Note deleted.', 'success');
+};
+
+function refreshSummaryNotes() {
+  const summaries = getAnonSummaries();
+  const section = document.querySelector('.summary-notes-section');
+  if (!section) return;
+
+  // Update notes list
+  const notesList = section.querySelector('.summary-notes-list');
+  const sortedSummaries = [...summaries].sort((a, b) => b.createdAt - a.createdAt);
+
+  if (sortedSummaries.length === 0) {
+    notesList.innerHTML = `
+      <div class="summary-notes-empty">
+        <span class="summary-notes-empty-icon">📝</span>
+        <p>No notes yet. Add your first reflection, goal, or insight above!</p>
+      </div>`;
+  } else {
+    notesList.innerHTML = sortedSummaries.map(note => {
+      const cat = SUMMARY_CATEGORIES.find(c => c.value === note.category) || SUMMARY_CATEGORIES[5];
+      const date = new Date(note.createdAt);
+      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      return `
+        <div class="summary-note-card">
+          <div class="summary-note-header">
+            <div class="summary-note-meta">
+              <span class="summary-note-category" style="--cat-color:${cat.color}">${cat.label}</span>
+              <span class="summary-note-date">${dateStr} · ${timeStr}</span>
+            </div>
+            <button class="summary-note-delete" onclick="window.deleteCustomSummary('${note.id}')" title="Delete note">×</button>
+          </div>
+          ${note.title ? `<h4 class="summary-note-title">${escapeHtml(note.title)}</h4>` : ''}
+          <p class="summary-note-body">${escapeHtml(note.content)}</p>
+        </div>`;
+    }).join('');
+  }
+
+  // Update count
+  const countEl = section.querySelector('.summary-notes-count');
+  if (countEl) countEl.textContent = `${summaries.length} ${summaries.length === 1 ? 'note' : 'notes'}`;
+}
+
+// ─── Custom Tracker Page — Drag & Drop Tile Builder ─────────────────────────
+const SUGGESTED_ACTIVITIES = {
+  morning: [
+    { name: 'Meditation', icon: '🧘' },
+    { name: 'Journaling', icon: '📓' },
+    { name: 'Cold shower', icon: '🚿' },
+    { name: 'Stretching', icon: '🤸' },
+    { name: 'Gratitude log', icon: '🙏' },
+    { name: 'Reading', icon: '📖' },
+    { name: 'Healthy breakfast', icon: '🥣' },
+    { name: 'Vitamins/Supplements', icon: '💊' },
+  ],
+  afternoon: [
+    { name: 'Power nap', icon: '💤' },
+    { name: 'Green tea break', icon: '🍵' },
+    { name: 'Stand-up desk', icon: '🖥️' },
+    { name: 'Social connection', icon: '🤝' },
+    { name: 'Creative work', icon: '🎨' },
+    { name: 'Nature walk', icon: '🌿' },
+    { name: 'Hydration check', icon: '🥤' },
+    { name: 'Mindful snack', icon: '🍎' },
+  ],
+  evening: [
+    { name: 'Screen-free hour', icon: '📵' },
+    { name: 'Evening walk', icon: '🌆' },
+    { name: 'Skincare routine', icon: '🧴' },
+    { name: 'Meal prep', icon: '🍱' },
+    { name: 'Light yoga', icon: '🧘‍♀️' },
+    { name: 'Reflection writing', icon: '✍️' },
+    { name: 'Herbal tea', icon: '☕' },
+    { name: 'Plan tomorrow', icon: '📋' },
+  ]
+};
+
 function renderCustom(root) {
   root.innerHTML = `
     <div class="container">
-      <h1 class="text-3xl mb-4">Custom Tracker Builder</h1>
-      <p class="text-gray mb-8">Build your own personal daily protocol.</p>
+      <h1 class="text-3xl mb-4">Custom Routine Builder</h1>
+      <p class="text-gray mb-8">Drag activities from the palette into your routine, or add your own.</p>
 
-      <div class="auth-box" style="max-width:600px;margin:0 auto 2rem;">
-        <h3 class="font-bold mb-4 border-b pb-2">Add New Activity</h3>
-        <div class="form-group">
-          <label for="custom-phase">Phase</label>
-          <select id="custom-phase" style="width:100%;padding:0.5rem;border:1px solid #d1d5db;border-radius:0.5rem;font-family:inherit;">
-            <option value="morning">Morning</option>
-            <option value="afternoon">Afternoon</option>
-            <option value="evening">Evening</option>
-          </select>
+      <!-- Suggestion Palette -->
+      <div class="custom-builder-section">
+        <h3 class="custom-builder-heading">
+          <span class="custom-builder-heading-icon">🎨</span>
+          Activity Palette
+          <span class="custom-builder-heading-sub">— drag tiles into a phase below</span>
+        </h3>
+        <div class="custom-palette-tabs">
+          <button class="custom-palette-tab active" data-ptab="morning" onclick="window.switchPaletteTab('morning')">🌅 Morning</button>
+          <button class="custom-palette-tab" data-ptab="afternoon" onclick="window.switchPaletteTab('afternoon')">☀️ Afternoon</button>
+          <button class="custom-palette-tab" data-ptab="evening" onclick="window.switchPaletteTab('evening')">🌙 Evening</button>
         </div>
-        <div class="form-group">
-          <label for="custom-activity">Activity Name</label>
-          <input type="text" id="custom-activity" placeholder="e.g. 10 minutes meditation" />
+        <div class="custom-palette" id="custom-palette">
+          <!-- Tiles rendered by JS -->
         </div>
-        <button class="btn-primary" style="width:100%" onclick="window.saveCustomActivity()">Add Activity to Protocol</button>
       </div>
 
-      <div class="auth-box" style="max-width:600px;margin:0 auto;">
-        <h3 class="font-bold mb-4 border-b pb-2">Your Custom Activities</h3>
-        <div id="custom-activities-list">Loading…</div>
+      <!-- Phase Drop Zones -->
+      <div class="custom-dropzones-grid">
+        <div class="custom-dropzone morning-zone" id="dropzone-morning"
+             ondragover="window.customDragOver(event)" ondragleave="window.customDragLeave(event)" ondrop="window.customDrop(event,'morning')">
+          <div class="custom-dropzone-header">
+            <span class="custom-dropzone-icon">🌅</span>
+            <h3>Morning Routine</h3>
+          </div>
+          <div class="custom-dropzone-body" id="dropbody-morning">
+            <div class="custom-dropzone-empty">Drop activities here</div>
+          </div>
+        </div>
+        <div class="custom-dropzone afternoon-zone" id="dropzone-afternoon"
+             ondragover="window.customDragOver(event)" ondragleave="window.customDragLeave(event)" ondrop="window.customDrop(event,'afternoon')">
+          <div class="custom-dropzone-header">
+            <span class="custom-dropzone-icon">☀️</span>
+            <h3>Afternoon Routine</h3>
+          </div>
+          <div class="custom-dropzone-body" id="dropbody-afternoon">
+            <div class="custom-dropzone-empty">Drop activities here</div>
+          </div>
+        </div>
+        <div class="custom-dropzone evening-zone" id="dropzone-evening"
+             ondragover="window.customDragOver(event)" ondragleave="window.customDragLeave(event)" ondrop="window.customDrop(event,'evening')">
+          <div class="custom-dropzone-header">
+            <span class="custom-dropzone-icon">🌙</span>
+            <h3>Evening Routine</h3>
+          </div>
+          <div class="custom-dropzone-body" id="dropbody-evening">
+            <div class="custom-dropzone-empty">Drop activities here</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manual add fallback -->
+      <div class="custom-manual-add">
+        <h3 class="custom-builder-heading">
+          <span class="custom-builder-heading-icon">✏️</span>
+          Or Add Your Own
+        </h3>
+        <div class="custom-manual-row">
+          <select id="custom-phase" class="custom-manual-select">
+            <option value="morning">🌅 Morning</option>
+            <option value="afternoon">☀️ Afternoon</option>
+            <option value="evening">🌙 Evening</option>
+          </select>
+          <input type="text" id="custom-activity" class="custom-manual-input" placeholder="e.g. 10 minutes meditation" />
+          <button class="btn-primary custom-manual-btn" onclick="window.saveCustomActivity()">+ Add</button>
+        </div>
       </div>
     </div>
   `;
+
+  window.switchPaletteTab('morning');
   window.loadCustomActivities();
 }
 
+window._currentPaletteTab = 'morning';
+
+window.switchPaletteTab = function(phase) {
+  window._currentPaletteTab = phase;
+  document.querySelectorAll('.custom-palette-tab').forEach(t => {
+    t.classList.toggle('active', t.getAttribute('data-ptab') === phase);
+  });
+  renderPaletteTiles(phase);
+};
+
+async function renderPaletteTiles(phase) {
+  const palette = document.getElementById('custom-palette');
+  if (!palette) return;
+  // Get existing custom activities to grey-out already-added ones
+  const { data: existing } = await dbGetCustomTrackers();
+  const existingNames = (existing || []).filter(e => e.phase === phase).map(e => e.name.toLowerCase());
+
+  const tiles = SUGGESTED_ACTIVITIES[phase] || [];
+  palette.innerHTML = tiles.map(t => {
+    const added = existingNames.includes(t.name.toLowerCase());
+    return `<div class="custom-palette-tile ${added ? 'custom-palette-tile--added' : ''}"
+                 draggable="${added ? 'false' : 'true'}"
+                 ondragstart="window.paletteDragStart(event,'${phase}','${t.name.replace(/'/g, "\\'")}')"
+                 ${!added ? `ondragend="this.classList.remove('dragging-card')"` : ''}>
+              <span class="custom-palette-tile-icon">${t.icon}</span>
+              <span class="custom-palette-tile-name">${t.name}</span>
+              ${added ? '<span class="custom-palette-tile-badge">✓ Added</span>' : ''}
+            </div>`;
+  }).join('');
+}
+
+window.paletteDragStart = function(e, phase, name) {
+  e.dataTransfer.setData('text/plain', name);
+  e.dataTransfer.setData('palette-phase', phase);
+  e.dataTransfer.setData('source', 'palette');
+  e.target.classList.add('dragging-card');
+};
+
+window.customDragOver = function(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('custom-dropzone--active');
+};
+
+window.customDragLeave = function(e) {
+  e.currentTarget.classList.remove('custom-dropzone--active');
+};
+
+window.customDrop = async function(e, targetPhase) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('custom-dropzone--active');
+
+  const source = e.dataTransfer.getData('source');
+  const name = e.dataTransfer.getData('text/plain');
+  if (!name) return;
+
+  // Check if already exists
+  const { data: existing } = await dbGetCustomTrackers();
+  const alreadyExists = (existing || []).some(c => c.phase === targetPhase && c.name.toLowerCase() === name.toLowerCase());
+  if (alreadyExists) {
+    showToast('Activity already in this phase.', 'warning');
+    return;
+  }
+
+  try {
+    const { error } = await dbInsertCustomTracker(targetPhase, name);
+    if (error) throw error;
+    showToast(`✅ "${name}" added to ${targetPhase}!`, 'success');
+    window.loadCustomActivities();
+    renderPaletteTiles(window._currentPaletteTab);
+  } catch (err) {
+    showToast(err.message || String(err), 'error');
+  }
+};
+
 window.loadCustomActivities = async function() {
-  const list = document.getElementById('custom-activities-list');
-  if (!list) return;
+  const phases = ['morning', 'afternoon', 'evening'];
   try {
     const { data, error } = await dbGetCustomTrackers();
     if (error) throw error;
-    if (!data || data.length === 0) {
-      list.innerHTML = '<p class="text-gray text-sm">No custom activities added yet.</p>';
-      return;
-    }
-    list.innerHTML = `<ul style="list-style:none;padding:0;margin:0;">${data.map(item => `
-      <li style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem 0;border-bottom:1px solid #eee;">
-        <div>
-          <strong>${item.name}</strong>
-          <span style="color:#888;font-size:0.8rem;margin-left:0.5rem;text-transform:capitalize;">(${item.phase})</span>
-        </div>
-        <button onclick="window.deleteCustomActivity('${item.id}')" class="btn-sm" style="color:red;border:1px solid red;background:transparent;">Remove</button>
-      </li>`).join('')}</ul>`;
+    phases.forEach(phase => {
+      const body = document.getElementById(`dropbody-${phase}`);
+      if (!body) return;
+      const items = (data || []).filter(i => i.phase === phase);
+      if (items.length === 0) {
+        body.innerHTML = '<div class="custom-dropzone-empty">Drop activities here</div>';
+        return;
+      }
+      body.innerHTML = items.map(item => {
+        const suggested = SUGGESTED_ACTIVITIES[phase]?.find(s => s.name.toLowerCase() === item.name.toLowerCase());
+        const icon = suggested ? suggested.icon : '✨';
+        return `<div class="custom-routine-tile" draggable="true">
+                  <div class="custom-routine-tile-left">
+                    <span class="custom-routine-tile-grip">⋮⋮</span>
+                    <span class="custom-routine-tile-icon">${icon}</span>
+                    <span class="custom-routine-tile-name">${item.name}</span>
+                  </div>
+                  <button class="custom-routine-tile-remove" onclick="window.deleteCustomActivity('${item.id}')" title="Remove">×</button>
+                </div>`;
+      }).join('');
+    });
   } catch (err) {
-    list.innerHTML = `<p class="text-red">Error loading custom activities: ${err.message || String(err)}</p>`;
+    phases.forEach(phase => {
+      const body = document.getElementById(`dropbody-${phase}`);
+      if (body) body.innerHTML = `<p class="text-red" style="font-size:0.85rem;">Error loading: ${err.message || String(err)}</p>`;
+    });
   }
 };
 
 window.deleteCustomActivity = async function(id) {
-  if (!confirm('Remove this activity?')) return;
   try {
     const { error } = await dbDeleteCustomTracker(id);
     if (error) throw error;
     showToast('Activity removed.', 'success');
     window.loadCustomActivities();
+    renderPaletteTiles(window._currentPaletteTab);
   } catch (err) {
     showToast('Failed to delete: ' + (err.message || String(err)), 'error');
   }
@@ -1493,49 +1864,402 @@ window.saveCustomActivity = async function() {
     document.getElementById('custom-activity').value = '';
     showToast('Activity added!', 'success');
     window.loadCustomActivities();
+    renderPaletteTiles(window._currentPaletteTab);
   } catch (err) {
     showToast(err.message || String(err), 'error');
   }
 };
 
-// ─── Samples Page ────────────────────────────────────────────────────────────
-function renderSamples(root) {
+// ─── Samples Page — Celebrity Routines with Tile Feel ────────────────────────
+const SAMPLE_ROUTINES = [
+  {
+    name: 'The Huberman Protocol',
+    icon: '🧠',
+    tagline: 'Neuroscience-optimised daily performance',
+    color: 'morning',
+    activities: [
+      { icon: '🌤️', name: 'Morning Sunlight', desc: '10–30 min outdoor light within first hour' },
+      { icon: '☕', name: 'Delay Caffeine', desc: '90–120 min after waking for cortisol alignment' },
+      { icon: '🏃', name: 'Zone 2 Cardio', desc: '150–200 min per week of steady-state cardio' },
+      { icon: '🧘', name: 'NSDR / Yoga Nidra', desc: '10–30 min non-sleep deep rest for recovery' },
+      { icon: '📵', name: 'Evening Light Control', desc: 'Dim lights after sunset, avoid bright screens' },
+    ]
+  },
+  {
+    name: 'The Attia Longevity',
+    icon: '🏋️',
+    tagline: 'Medicine 3.0 — exercise & metabolic health',
+    color: 'afternoon',
+    activities: [
+      { icon: '⏰', name: 'Fasting Window (16h)', desc: 'Time-restricted eating for metabolic flexibility' },
+      { icon: '💪', name: 'Heavy Resistance Training', desc: '3–4x/week compound movements for lean mass' },
+      { icon: '🥩', name: 'Protein Goal (1g/lb)', desc: 'Prioritize leucine-rich protein across meals' },
+      { icon: '🧖', name: 'Sauna Protocol', desc: '4x/week at 180°F for cardiovascular benefits' },
+      { icon: '📊', name: 'Biomarker Tracking', desc: 'Regular blood panels and metabolic checkups' },
+    ]
+  },
+  {
+    name: 'The Walker Sleep',
+    icon: '😴',
+    tagline: 'Why We Sleep — optimise rest & recovery',
+    color: 'evening',
+    activities: [
+      { icon: '🕐', name: 'Consistent Bedtime', desc: 'Same sleep/wake time ±30 min, even weekends' },
+      { icon: '❄️', name: 'Cold Room (65°F)', desc: 'Cool bedroom temperature triggers melatonin' },
+      { icon: '☕', name: 'No Caffeine after 2PM', desc: 'Caffeine half-life is 5–6 hours' },
+      { icon: '🚿', name: 'Hot Shower before Bed', desc: 'Core body temp drop after warm shower aids sleep' },
+      { icon: '📱', name: 'Screen Curfew', desc: 'No screens 60 min before bed for better REM' },
+    ]
+  },
+  {
+    name: 'The Goggins Discipline',
+    icon: '🔥',
+    tagline: 'Mental toughness & physical excellence',
+    color: 'morning',
+    activities: [
+      { icon: '⏰', name: '4:30 AM Wake-up', desc: 'Rise before the world to seize the day' },
+      { icon: '🏃', name: 'Run / Cardio Session', desc: 'Daily high-intensity endurance training' },
+      { icon: '📖', name: 'Study / Skill Building', desc: 'Dedicated time for mental growth' },
+      { icon: '🧊', name: 'Cold Exposure', desc: 'Cold showers or ice baths for mental resilience' },
+      { icon: '📓', name: 'Accountability Mirror', desc: 'Daily affirmations & honest self-assessment' },
+    ]
+  },
+  {
+    name: 'The Ferriss Efficiency',
+    icon: '⚡',
+    tagline: 'The 4-Hour Body & productivity hacks',
+    color: 'afternoon',
+    activities: [
+      { icon: '🎯', name: '80/20 Focus', desc: 'Identify the 20% of tasks producing 80% of results' },
+      { icon: '🧊', name: 'Morning Cold Exposure', desc: '30-second cold shower to boost metabolism' },
+      { icon: '🥗', name: 'Slow-Carb Diet', desc: 'Protein + legumes, no white carbs 6 days/week' },
+      { icon: '📝', name: 'Journaling (5-min)', desc: '5-minute journal for gratitude & focus' },
+      { icon: '🧪', name: 'Self-Experimentation', desc: 'Track, measure, and optimise everything' },
+    ]
+  },
+  {
+    name: 'The Wim Hof Method',
+    icon: '🧊',
+    tagline: 'Breathwork, cold exposure & commitment',
+    color: 'evening',
+    activities: [
+      { icon: '🫁', name: 'Breathing Rounds (3x)', desc: '30 power breaths + retention × 3 rounds' },
+      { icon: '🧊', name: 'Cold Immersion', desc: '2–5 min cold bath or ice plunge' },
+      { icon: '🧘', name: 'Meditation', desc: '15–20 min mindfulness or guided meditation' },
+      { icon: '🏔️', name: 'Commitment Practice', desc: 'Push boundaries with gradual exposure training' },
+      { icon: '🌿', name: 'Nature Connection', desc: 'Outdoor barefoot walking or grounding' },
+    ]
+  }
+];
+
+async function renderSamples(root) {
+  // Pre-fetch existing custom trackers to show "Added" states
+  const { data: existingCustom } = await dbGetCustomTrackers();
+  const existingNames = (existingCustom || []).map(c => ({ phase: c.phase, name: c.name.toLowerCase() }));
+
+  // Merge built-in and user-created samples
+  const userSamples = getUserSamples();
+  const allRoutines = [...SAMPLE_ROUTINES, ...userSamples];
+
   root.innerHTML = `
     <div class="container">
       <h1 class="text-3xl mb-4">Protocol Samples</h1>
-      <p class="text-gray mb-8">Science-backed routines from industry experts.</p>
-      <div class="grid-3">
-        <div class="tracker-tile morning-tile">
-          <h3 class="text-2xl mb-2">The Huberman</h3>
-          <ul style="padding-left:1.5rem;color:#4b5563;line-height:1.8;">
-            <li>Morning Sunlight (10-30m)</li>
-            <li>Delay Caffeine (90-120m)</li>
-            <li>Zone 2 Cardio</li>
-            <li>NSDR / Yoga Nidra</li>
-          </ul>
+      <p class="text-gray mb-8">Science-backed routines from experts, plus your own custom protocols.</p>
+
+      <!-- Create new protocol button -->
+      <div class="sample-create-banner">
+        <div class="sample-create-banner-text">
+          <span class="sample-create-banner-icon">✨</span>
+          <div>
+            <strong>Create Your Own Protocol</strong>
+            <p>Design a custom routine with your own activities and share-ready format.</p>
+          </div>
         </div>
-        <div class="tracker-tile afternoon-tile">
-          <h3 class="text-2xl mb-2">The Attia</h3>
-          <ul style="padding-left:1.5rem;color:#4b5563;line-height:1.8;">
-            <li>Fasting Window (16h)</li>
-            <li>Heavy Resistance Training</li>
-            <li>Protein Goal (1g/lb)</li>
-            <li>Sauna Protocol</li>
-          </ul>
-        </div>
-        <div class="tracker-tile evening-tile">
-          <h3 class="text-2xl mb-2">The Walker (Sleep)</h3>
-          <ul style="padding-left:1.5rem;color:#4b5563;line-height:1.8;">
-            <li>Consistent Bedtime</li>
-            <li>Cold Room (65°F)</li>
-            <li>No Caffeine after 2PM</li>
-            <li>Hot Shower before Bed</li>
-          </ul>
-        </div>
+        <button class="btn-primary sample-create-btn" onclick="window.openCreateSampleModal()">+ New Protocol</button>
+      </div>
+
+      ${userSamples.length > 0 ? `
+      <h2 class="text-2xl mb-4" style="margin-top:2rem;">📌 My Protocols</h2>
+      <div class="samples-grid mb-8" id="user-samples-grid">
+        ${userSamples.map((r, i) => {
+          const globalIdx = SAMPLE_ROUTINES.length + i;
+          return buildSampleCard(r, globalIdx, existingNames, true);
+        }).join('')}
+      </div>
+      ` : ''}
+
+      <h2 class="text-2xl mb-4" ${userSamples.length > 0 ? '' : 'style="display:none;"'}>🔬 Expert Protocols</h2>
+      <div class="samples-grid">
+        ${SAMPLE_ROUTINES.map((r, idx) => buildSampleCard(r, idx, existingNames, false)).join('')}
       </div>
     </div>
   `;
 }
+
+function buildSampleCard(r, idx, existingNames, isUserCreated) {
+  const alreadyAdded = r.activities.filter(a =>
+    existingNames.some(e => e.name === a.name.toLowerCase())
+  ).length;
+  const allAdded = alreadyAdded === r.activities.length;
+
+  return `
+  <div class="sample-routine-card ${r.color}-tile ${isUserCreated ? 'sample-routine-card--user' : ''}" id="sample-card-${idx}">
+    <div class="sample-routine-header">
+      <span class="sample-routine-icon">${r.icon}</span>
+      <div style="flex:1">
+        <h3 class="sample-routine-title">${escapeHtml(r.name)}</h3>
+        <p class="sample-routine-tagline">${escapeHtml(r.tagline)}</p>
+      </div>
+      ${isUserCreated ? `
+        <button class="sample-card-delete-btn" onclick="window.deleteUserSample('${r.id}')" title="Delete this protocol">🗑️</button>
+      ` : ''}
+    </div>
+    <div class="sample-routine-activities">
+      ${r.activities.map(a => {
+        const isAdded = existingNames.some(e => e.name === a.name.toLowerCase());
+        return `
+        <div class="sample-activity-tile ${isAdded ? 'sample-activity-tile--added' : ''}">
+          <span class="sample-activity-icon">${a.icon}</span>
+          <div class="sample-activity-info">
+            <span class="sample-activity-name">${escapeHtml(a.name)}</span>
+            <span class="sample-activity-desc">${escapeHtml(a.desc)}</span>
+          </div>
+          ${isAdded ? '<span class="sample-activity-badge">✓</span>' : ''}
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="sample-use-section">
+      <div class="sample-use-row">
+        <label class="sample-phase-label" for="sample-phase-${idx}">Phase:</label>
+        <select id="sample-phase-${idx}" class="sample-phase-select">
+          <option value="morning" ${r.color === 'morning' ? 'selected' : ''}>🌅 Morning</option>
+          <option value="afternoon" ${r.color === 'afternoon' ? 'selected' : ''}>☀️ Afternoon</option>
+          <option value="evening" ${r.color === 'evening' ? 'selected' : ''}>🌙 Evening</option>
+        </select>
+      </div>
+      <button class="sample-use-btn ${allAdded ? 'sample-use-btn--done' : ''}"
+              id="sample-use-btn-${idx}"
+              onclick="window.useProtocol(${idx})"
+              ${allAdded ? 'disabled' : ''}>
+        ${allAdded ? '✓ All Activities Added' : '🚀 Use This Protocol'}
+      </button>
+      ${allAdded ? '<a href="#custom" class="sample-view-link">→ View Custom Routines</a>' : ''}
+    </div>
+  </div>`;
+}
+
+// ─── Use Protocol — Bulk import sample activities as custom trackers ─────────
+window.useProtocol = async function(routineIndex) {
+  // Merge built-in and user samples to look up by index
+  const allRoutines = [...SAMPLE_ROUTINES, ...getUserSamples()];
+  const routine = allRoutines[routineIndex];
+  if (!routine) return;
+
+  const phaseSelect = document.getElementById(`sample-phase-${routineIndex}`);
+  const targetPhase = phaseSelect ? phaseSelect.value : routine.color;
+  const btn = document.getElementById(`sample-use-btn-${routineIndex}`);
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Adding…';
+    btn.classList.add('sample-use-btn--loading');
+  }
+
+  try {
+    const { data: existing } = await dbGetCustomTrackers();
+    const existingNames = (existing || []).map(c => c.name.toLowerCase());
+    let addedCount = 0, skippedCount = 0;
+
+    for (const activity of routine.activities) {
+      if (existingNames.includes(activity.name.toLowerCase())) { skippedCount++; continue; }
+      const { error } = await dbInsertCustomTracker(targetPhase, activity.name);
+      if (error) { console.warn(`Failed to add "${activity.name}":`, error); continue; }
+      addedCount++;
+    }
+
+    if (btn) {
+      btn.classList.remove('sample-use-btn--loading');
+      btn.classList.add('sample-use-btn--done');
+      const phaseLabel = targetPhase.charAt(0).toUpperCase() + targetPhase.slice(1);
+      btn.textContent = `✓ Added to ${phaseLabel}`;
+      const card = document.getElementById(`sample-card-${routineIndex}`);
+      const useSection = card?.querySelector('.sample-use-section');
+      if (useSection && !useSection.querySelector('.sample-view-link')) {
+        const link = document.createElement('a');
+        link.href = '#custom'; link.className = 'sample-view-link'; link.textContent = '→ View Custom Routines';
+        useSection.appendChild(link);
+      }
+    }
+
+    if (addedCount > 0 && skippedCount > 0) {
+      showToast(`✅ ${addedCount} activities from "${routine.name}" added to ${targetPhase}! (${skippedCount} already existed)`, 'success', 4000);
+    } else if (addedCount > 0) {
+      showToast(`✅ ${addedCount} activities from "${routine.name}" added to ${targetPhase}!`, 'success', 4000);
+    } else {
+      showToast(`All activities from "${routine.name}" were already in your custom trackers.`, 'warning', 3500);
+      if (btn) btn.textContent = '✓ All Activities Added';
+    }
+
+    const card = document.getElementById(`sample-card-${routineIndex}`);
+    if (card) {
+      card.querySelectorAll('.sample-activity-tile').forEach(tile => {
+        if (!tile.classList.contains('sample-activity-tile--added')) {
+          tile.classList.add('sample-activity-tile--added');
+          const badge = document.createElement('span'); badge.className = 'sample-activity-badge'; badge.textContent = '✓';
+          tile.appendChild(badge);
+        }
+      });
+    }
+  } catch (err) {
+    console.error('Use protocol error:', err);
+    showToast('Failed to import protocol: ' + (err.message || String(err)), 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🚀 Use This Protocol'; btn.classList.remove('sample-use-btn--loading', 'sample-use-btn--done'); }
+  }
+};
+
+// ─── Create Custom Sample Modal ──────────────────────────────────────────────
+const SAMPLE_ICONS = ['🧠','🏋️','😴','🔥','⚡','🧊','🌿','💪','🎯','🧘','📖','🫁','☀️','🌙','💡','❤️','🏃','🥗','📊','🔬'];
+
+window.openCreateSampleModal = function() {
+  const iconGrid = SAMPLE_ICONS.map(ic =>
+    `<button type="button" class="cs-icon-btn" data-icon="${ic}" onclick="window._csSelectIcon(this,'${ic}')">${ic}</button>`
+  ).join('');
+
+  showModal('✨ Create Your Own Protocol', `
+    <div class="cs-form">
+      <div class="cs-row">
+        <div class="cs-field" style="flex:2">
+          <label class="cs-label">Protocol Name</label>
+          <input type="text" id="cs-name" class="cs-input" placeholder="e.g. My Recovery Protocol" maxlength="60" />
+        </div>
+        <div class="cs-field" style="flex:1">
+          <label class="cs-label">Phase</label>
+          <select id="cs-color" class="cs-select">
+            <option value="morning">🌅 Morning</option>
+            <option value="afternoon">☀️ Afternoon</option>
+            <option value="evening">🌙 Evening</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="cs-field">
+        <label class="cs-label">Icon</label>
+        <div class="cs-icon-grid" id="cs-icon-grid">${iconGrid}</div>
+        <input type="hidden" id="cs-icon" value="🧠" />
+      </div>
+
+      <div class="cs-field">
+        <label class="cs-label">Tagline</label>
+        <input type="text" id="cs-tagline" class="cs-input" placeholder="Short description of your protocol" maxlength="100" />
+      </div>
+
+      <div class="cs-field">
+        <label class="cs-label">Activities <span style="font-weight:400;color:var(--muted-color)">(add 1–10)</span></label>
+        <div id="cs-activities-list" class="cs-activities-list"></div>
+        <div class="cs-add-activity-row">
+          <input type="text" id="cs-act-icon" class="cs-input cs-act-icon-input" placeholder="🏃" maxlength="4" />
+          <input type="text" id="cs-act-name" class="cs-input" style="flex:2" placeholder="Activity name" maxlength="60" />
+          <input type="text" id="cs-act-desc" class="cs-input" style="flex:3" placeholder="Short description" maxlength="120" />
+          <button type="button" class="btn-primary cs-add-act-btn" onclick="window._csAddActivity()">+</button>
+        </div>
+      </div>
+    </div>
+  `, `
+    <span class="cs-act-count" id="cs-act-count">0 activities</span>
+    <button class="btn-primary" onclick="window._csSaveProtocol()" style="min-width:140px;">💾 Save Protocol</button>
+  `);
+
+  // Select first icon by default
+  const firstBtn = document.querySelector('.cs-icon-btn');
+  if (firstBtn) firstBtn.classList.add('cs-icon-btn--active');
+
+  // Store temp activities
+  window._csActivities = [];
+};
+
+window._csSelectIcon = function(btn, icon) {
+  document.querySelectorAll('.cs-icon-btn').forEach(b => b.classList.remove('cs-icon-btn--active'));
+  btn.classList.add('cs-icon-btn--active');
+  document.getElementById('cs-icon').value = icon;
+};
+
+window._csAddActivity = function() {
+  if (window._csActivities.length >= 10) {
+    showToast('Maximum 10 activities per protocol.', 'warning');
+    return;
+  }
+  const icon = (document.getElementById('cs-act-icon')?.value || '').trim() || '✅';
+  const name = (document.getElementById('cs-act-name')?.value || '').trim();
+  const desc = (document.getElementById('cs-act-desc')?.value || '').trim();
+  if (!name) { showToast('Activity name is required.', 'error'); return; }
+
+  window._csActivities.push({ icon, name, desc: desc || name });
+
+  // Clear inputs
+  document.getElementById('cs-act-icon').value = '';
+  document.getElementById('cs-act-name').value = '';
+  document.getElementById('cs-act-desc').value = '';
+  document.getElementById('cs-act-name').focus();
+
+  // Re-render list
+  _csRenderActivities();
+};
+
+window._csRemoveActivity = function(idx) {
+  window._csActivities.splice(idx, 1);
+  _csRenderActivities();
+};
+
+function _csRenderActivities() {
+  const list = document.getElementById('cs-activities-list');
+  const count = document.getElementById('cs-act-count');
+  if (!list) return;
+
+  if (window._csActivities.length === 0) {
+    list.innerHTML = '<div class="cs-empty">No activities yet — add one below.</div>';
+  } else {
+    list.innerHTML = window._csActivities.map((a, i) => `
+      <div class="cs-activity-item">
+        <span class="cs-activity-item-icon">${a.icon}</span>
+        <span class="cs-activity-item-name">${escapeHtml(a.name)}</span>
+        <span class="cs-activity-item-desc">${escapeHtml(a.desc)}</span>
+        <button type="button" class="cs-activity-item-remove" onclick="window._csRemoveActivity(${i})" title="Remove">×</button>
+      </div>
+    `).join('');
+  }
+  if (count) count.textContent = `${window._csActivities.length} activit${window._csActivities.length === 1 ? 'y' : 'ies'}`;
+}
+
+window._csSaveProtocol = function() {
+  const name = (document.getElementById('cs-name')?.value || '').trim();
+  const icon = document.getElementById('cs-icon')?.value || '🧠';
+  const tagline = (document.getElementById('cs-tagline')?.value || '').trim();
+  const color = document.getElementById('cs-color')?.value || 'morning';
+
+  if (!name) { showToast('Please enter a protocol name.', 'error'); return; }
+  if (window._csActivities.length === 0) { showToast('Add at least one activity.', 'error'); return; }
+
+  const samples = getUserSamples();
+  samples.push({
+    id: 'us-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+    name, icon, tagline: tagline || name, color,
+    activities: [...window._csActivities],
+    createdAt: Date.now()
+  });
+  saveUserSamples(samples);
+
+  // Close modal and refresh page
+  document.getElementById('rt-modal-overlay')?.remove();
+  showToast(`✅ "${name}" protocol created!`, 'success');
+  route(); // Re-render the samples page
+};
+
+window.deleteUserSample = function(sampleId) {
+  const samples = getUserSamples().filter(s => s.id !== sampleId);
+  saveUserSamples(samples);
+  showToast('Protocol deleted.', 'success');
+  route(); // Re-render
+};
 
 // ─── About Page ──────────────────────────────────────────────────────────────
 function renderAbout(root) {
@@ -1825,3 +2549,226 @@ async function executeE2ETests(steps) {
   if (passed === total) { logC('🎉 ALL TESTS PASSED!'); triggerConfetti(); await delay(300); triggerConfetti(); }
   else { logC(`⚠️ ${passed}/${total} tests passed.`); }
 }
+
+// ─── Custom Dropdown Component ──────────────────────────────────────────────
+// Replaces native <select> dropdown panels with fully-styled custom menus
+// Uses a MutationObserver to automatically enhance selects as they appear
+
+class CustomDropdown {
+  constructor(selectEl) {
+    if (selectEl.dataset.csdEnhanced) return;
+    selectEl.dataset.csdEnhanced = 'true';
+    this.select = selectEl;
+
+    // Create wrapper
+    this.wrapper = document.createElement('div');
+    this.wrapper.className = 'csd-wrapper';
+
+    // Trigger button
+    this.trigger = document.createElement('button');
+    this.trigger.type = 'button';
+    this.trigger.className = 'csd-trigger';
+    this.trigger.setAttribute('aria-haspopup', 'listbox');
+    this.trigger.setAttribute('aria-expanded', 'false');
+
+    // Text span
+    this.triggerText = document.createElement('span');
+    this.triggerText.className = 'csd-trigger-text';
+    this.trigger.appendChild(this.triggerText);
+
+    // Arrow
+    const arrow = document.createElement('span');
+    arrow.className = 'csd-arrow';
+    arrow.innerHTML = '<svg width="12" height="8" viewBox="0 0 12 8" fill="none"><path d="M1.41 0L6 4.58L10.59 0L12 1.41L6 7.41L0 1.41L1.41 0Z" fill="currentColor"/></svg>';
+    this.trigger.appendChild(arrow);
+
+    // Options panel
+    this.optionsPanel = document.createElement('div');
+    this.optionsPanel.className = 'csd-options';
+    this.optionsPanel.setAttribute('role', 'listbox');
+    this.buildOptions();
+    this.updateTriggerText();
+
+    // Assemble DOM: insert wrapper before select, move select inside
+    selectEl.parentNode.insertBefore(this.wrapper, selectEl);
+    this.wrapper.appendChild(this.trigger);
+    this.wrapper.appendChild(this.optionsPanel);
+    this.wrapper.appendChild(selectEl);
+
+    // Bind events
+    this._onTriggerClick = (e) => { e.preventDefault(); e.stopPropagation(); this.toggle(); };
+    this._onDocClick = (e) => { if (!this.wrapper.contains(e.target)) this.close(); };
+    this._onKeydown = (e) => this._handleKeydown(e);
+
+    this.trigger.addEventListener('click', this._onTriggerClick);
+    document.addEventListener('click', this._onDocClick);
+    this.trigger.addEventListener('keydown', this._onKeydown);
+
+    // Listen for programmatic changes on native select
+    this.select.addEventListener('change', () => {
+      this.updateTriggerText();
+      this.updateActiveOption();
+    });
+  }
+
+  buildOptions() {
+    this.optionsPanel.innerHTML = '';
+    Array.from(this.select.options).forEach((opt, i) => {
+      const div = document.createElement('div');
+      div.className = 'csd-option';
+      if (opt.selected && opt.value !== '') div.classList.add('csd-option--active');
+      if (opt.value === '' || opt.textContent.startsWith('--')) div.classList.add('csd-option--placeholder');
+      div.textContent = opt.textContent;
+      div.setAttribute('role', 'option');
+      div.setAttribute('data-value', opt.value);
+      div.setAttribute('data-index', String(i));
+      div.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.selectOption(i);
+      });
+      this.optionsPanel.appendChild(div);
+    });
+  }
+
+  updateTriggerText() {
+    const sel = this.select.options[this.select.selectedIndex];
+    if (sel) {
+      this.triggerText.textContent = sel.textContent;
+      if (sel.value === '' || sel.textContent.startsWith('--')) {
+        this.trigger.classList.add('csd-trigger--placeholder');
+      } else {
+        this.trigger.classList.remove('csd-trigger--placeholder');
+      }
+    }
+  }
+
+  updateActiveOption() {
+    const opts = this.optionsPanel.querySelectorAll('.csd-option');
+    opts.forEach((opt, i) => {
+      const isActive = i === this.select.selectedIndex;
+      opt.classList.toggle('csd-option--active', isActive && this.select.options[i]?.value !== '');
+    });
+  }
+
+  selectOption(index) {
+    this.select.selectedIndex = index;
+    this.select.dispatchEvent(new Event('change', { bubbles: true }));
+    this.updateTriggerText();
+    this.updateActiveOption();
+    this.close();
+  }
+
+  toggle() {
+    const isOpen = this.wrapper.classList.contains('csd-open');
+    // Close all other open dropdowns
+    document.querySelectorAll('.csd-wrapper.csd-open').forEach(w => {
+      if (w !== this.wrapper) w.classList.remove('csd-open');
+    });
+    if (!isOpen) {
+      this.open();
+    } else {
+      this.close();
+    }
+  }
+
+  open() {
+    // Determine direction
+    const rect = this.wrapper.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    this.optionsPanel.classList.toggle('csd-options--above', spaceBelow < 200);
+
+    this.wrapper.classList.add('csd-open');
+    this.trigger.setAttribute('aria-expanded', 'true');
+
+    // Elevate parent activity-card so dropdown renders above sibling cards
+    const parentCard = this.wrapper.closest('.activity-card');
+    if (parentCard) parentCard.classList.add('csd-card-elevated');
+
+    // Scroll active option into view
+    requestAnimationFrame(() => {
+      const active = this.optionsPanel.querySelector('.csd-option--active');
+      if (active) active.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  close() {
+    this.wrapper.classList.remove('csd-open');
+    this.trigger.setAttribute('aria-expanded', 'false');
+
+    // Remove elevation from parent activity-card
+    const parentCard = this.wrapper.closest('.activity-card');
+    if (parentCard) parentCard.classList.remove('csd-card-elevated');
+  }
+
+  _handleKeydown(e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      this.toggle();
+    } else if (e.key === 'Escape') {
+      this.close();
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const dir = e.key === 'ArrowDown' ? 1 : -1;
+      let next = this.select.selectedIndex + dir;
+      if (next >= 0 && next < this.select.options.length) {
+        this.selectOption(next);
+      }
+    }
+  }
+
+  destroy() {
+    this.trigger.removeEventListener('click', this._onTriggerClick);
+    document.removeEventListener('click', this._onDocClick);
+    this.trigger.removeEventListener('keydown', this._onKeydown);
+    // Restore native select
+    if (this.wrapper.parentNode) {
+      this.wrapper.parentNode.insertBefore(this.select, this.wrapper);
+      this.wrapper.remove();
+    }
+    delete this.select.dataset.csdEnhanced;
+  }
+}
+
+// Selector for all selects to enhance
+const CSD_SELECTORS = [
+  'select.rt-select',
+  'select.custom-manual-select',
+  'select.sample-phase-select',
+  'select.summary-add-select',
+  '.form-group select'
+].join(', ');
+
+function enhanceAllSelects(root) {
+  const container = root || document;
+  container.querySelectorAll(CSD_SELECTORS).forEach(sel => {
+    if (!sel.dataset.csdEnhanced) {
+      try { new CustomDropdown(sel); } catch (e) { console.warn('CSD enhance error:', e); }
+    }
+  });
+}
+
+// MutationObserver: auto-enhance selects as they appear in #root
+(function initCustomDropdownObserver() {
+  let debounceTimer = null;
+  const observer = new MutationObserver((mutations) => {
+    let hasNewNodes = false;
+    for (const m of mutations) {
+      if (m.addedNodes.length > 0) { hasNewNodes = true; break; }
+    }
+    if (!hasNewNodes) return;
+    // Debounce to batch DOM updates
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => enhanceAllSelects(), 80);
+  });
+  // Start observing when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      observer.observe(document.body, { childList: true, subtree: true });
+      enhanceAllSelects();
+    });
+  } else {
+    observer.observe(document.body, { childList: true, subtree: true });
+    enhanceAllSelects();
+  }
+})();
