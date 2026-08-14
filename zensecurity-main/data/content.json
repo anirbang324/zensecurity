@@ -1,0 +1,174 @@
+{
+  "last_updated": "2025-08-24",
+  "owner": "Trupti Shiralkar",
+  "items": [
+    {
+      "type": "podcast",
+      "title": "Cyber Economics and Keeping Up with Innovation",
+      "source": "Security & GRC Decoded / ComplianceCow",
+      "url": "https://www.compliancecow.com/podcast/cyber-economics-and-keeping-up-with-innovation/",
+      "secondary": "https://www.youtube.com/watch?v=7ekkz0Mmnus",
+      "date": "2025-08-07",
+      "description": "Trupti discusses cyber risk trade-offs, ROI, and aligning security with innovation.",
+      "author": "Trupti Shiralkar",
+      "tags": [
+        "GRC",
+        "AppSec",
+        "AI",
+        "Risk"
+      ]
+    },
+    {
+      "type": "talk",
+      "title": "Leveraging Software Bill of Material to foster open source software security",
+      "source": " Diana Initiative / Open Source Security Foundation",
+      "url": "https://www.youtube.com/watch?v=xYZnF-e3t_Q&list=PLruWyvc_zJ9Z4UzU60VDox8-DHgTkhOnx&index=2&t=2s",
+      "date": "2025-08-07",
+      "description": "Open Source Security talk on SBOMs and supply chain security.",
+      "author": "Trupti Shiralkar",
+      "tags": [
+        "supply chain security",
+        "SBOM",
+        "Open Source Security"
+      ]
+    },
+    {
+      "type": "podcast",
+      "title": "Security & GRC Decoded \u2014 Show Page",
+      "source": "Spotify",
+      "url": "https://open.spotify.com/show/5pigcMwOrYIA6d9OOOsxqr",
+      "description": "Podcast home on Spotify featuring Trupti's episode.",
+      "tags": [
+        "Podcast"
+      ]
+    },
+    {
+      "type": "talk",
+      "title": "Zerotrusting Serverless Applications \u2014 BSides Seattle 2020",
+      "source": "YouTube",
+      "url": "https://www.youtube.com/watch?v=16uW_HAOgQw",
+      "date": "2020-03-30",
+      "description": "Conference talk on threat modeling and zero trust for serverless.",
+      "tags": [
+        "Serverless",
+        "Zero Trust"
+      ]
+    },
+    {
+      "type": "video",
+      "title": "Adopt purple team strategy to augment Application Security",
+      "source": "YouTube",
+      "url": "https://www.youtube.com/watch?v=9rZMm5BhLDo",
+      "date": "2022-07-01",
+      "description": "On collaboration between red and blue teams to improve AppSec outcomes.",
+      "tags": [
+        "Purple Team",
+        "AppSec"
+      ]
+    },
+    {
+      "type": "video",
+      "title": "Panel: Security Is Not A Unicorn (Performance vs Security)",
+      "source": "YouTube",
+      "url": "https://www.youtube.com/watch?v=4uZWm3OmxK0",
+      "date": "2020-08-15",
+      "description": "Panel with industry leaders including Trupti Shiralkar.",
+      "tags": [
+        "Panel",
+        "Performance"
+      ]
+    },
+    {
+      "type": "podcast",
+      "title": "Mastering Organizational Security Culture \u2014 ScaletoZero",
+      "source": "ScaletoZero",
+      "url": "https://www.scaletozero.com/episodes/mastering-organizational-security-culture-with-trupti-shiralkar/",
+      "secondary": "https://m.youtube.com/watch?v=SXma20FhJkA",
+      "date": "2022-11-01",
+      "description": "Discussion on driving product risk programs and security culture.",
+      "tags": [
+        "Culture",
+        "Product Security"
+      ]
+    },
+    {
+      "type": "blog",
+      "title": "The Future of Secure Software Development: A Collaborative Journey",
+      "source": "Backslash Security",
+      "url": "https://www.backslash.security/blog/the-future-of-secure-software-development-a-collaborative-journey",
+      "date": "2024-12-01",
+      "description": "Perspective on collaborative AppSec and privacy engineering.",
+      "tags": [
+        "Backslash",
+        "Secure SDLC"
+      ]
+    },
+    {
+      "type": "blog",
+      "title": "Black Hat & DEF CON Roundup: The Future of Application Security",
+      "source": "Backslash Security",
+      "url": "https://www.backslash.security/blog/black-hat-and-defcon-roundup-a-deep-dive-into-the-future-of-application-security",
+      "date": "2023-08-15",
+      "description": "Panel recap including insights from Trupti Shiralkar.",
+      "tags": [
+        "Conference",
+        "DEF CON"
+      ]
+    },
+    {
+      "type": "blog",
+      "title": "Securing Software in the Fast, Feature-Driven SDLC (quoted)",
+      "source": "Security Innovation",
+      "url": "https://blog.securityinnovation.com/securing-software-in-the-sdlc",
+      "date": "2021-12-01",
+      "description": "Article citing Trupti on securing APIs and the SDLC.",
+      "tags": [
+        "SDLC",
+        "APIs"
+      ]
+    },
+    {
+      "type": "profile",
+      "title": "Speaker \u2014 InfoSec World 2022",
+      "source": "InfoSec World",
+      "url": "https://events.infosecworldusa.com/2022event/speaker/485928/trupti-shiralkar",
+      "date": "2022-09-01",
+      "description": "Speaker profile and bio.",
+      "tags": [
+        "Speaker"
+      ]
+    },
+    {
+      "type": "profile",
+      "title": "Advisory Board Member \u2014 Backslash Security",
+      "source": "The Org",
+      "url": "https://theorg.com/org/backslash-security/org-chart/trupti-shiralkar",
+      "date": "2023-12-15",
+      "description": "Advisory role at Backslash Security.",
+      "tags": [
+        "Advisory"
+      ]
+    },
+    {
+      "type": "video",
+      "title": "Security & GRC Decoded \u2014 YouTube Clip",
+      "source": "YouTube Shorts",
+      "url": "https://www.youtube.com/shorts/rcVqAII4W-Q",
+      "date": "2025-08-14",
+      "description": "Short clip promoting the episode featuring Trupti.",
+      "tags": [
+        "Podcast"
+      ]
+    },
+    {
+      "type": "video",
+      "title": "Trupti Shiralkar Security Talks \u2014 Playlist",
+      "source": "YouTube",
+      "url": "https://m.youtube.com/playlist?list=PLruWyvc_zJ9Z4UzU60VDox8-DHgTkhOnx",
+      "description": "Curated playlist of talks and panels.",
+      "tags": [
+        "Playlist"
+      ]
+    }
+  ]
+}
