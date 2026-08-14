@@ -227,7 +227,7 @@ async function route() {
   else {
     const page = hash.replace('#', '') || 'app';
     switch (page) {
-      case 'app':
+      case 'app':     renderHome(root); break;
       case 'tracker': renderTracker(root); break;
       case 'summary': await renderSummary(root); break;
       case 'custom':  renderCustom(root); break;
@@ -246,7 +246,7 @@ function updateActiveNavLink() {
   const hash = window.location.hash || '#app';
   document.querySelectorAll('#nav-links .nav-lnk, #nav-mobile .nav-lnk').forEach(link => {
     const href = link.getAttribute('href');
-    const active = href === hash || (hash === '' && href === '#app') || (hash === '#tracker' && href === '#app');
+    const active = href === hash || (hash === '' && href === '#app');
     link.classList.toggle('active', active);
   });
 }
@@ -673,9 +673,330 @@ function renderLogin(root) {
 }
 
 // ─── Tracker Page ────────────────────────────────────────────────────────────
+// ─── Motivational Quotes ──────────────────────────────────────────────────────
+const MOTIVATIONAL_QUOTES = [
+  { text: 'The best way to predict the future is to create it.', author: 'Peter Drucker', icon: '🚀' },
+  { text: 'Discipline equals freedom.', author: 'Jocko Willink', icon: '🔥' },
+  { text: 'Small daily improvements over time lead to stunning results.', author: 'Robin Sharma', icon: '📈' },
+  { text: 'Your brain is the most powerful tool you own. Use it wisely.', author: 'Andrew Huberman', icon: '🧠' },
+  { text: 'We are what we repeatedly do. Excellence is not an act, but a habit.', author: 'Aristotle', icon: '⭐' },
+  { text: 'The secret of getting ahead is getting started.', author: 'Mark Twain', icon: '💡' },
+  { text: 'Focus on the process, not the outcome, and the outcome takes care of itself.', author: 'Nick Saban', icon: '🎯' },
+  { text: 'Sleep is the greatest legal performance-enhancing drug that most people are probably neglecting.', author: 'Matthew Walker', icon: '😴' },
+  { text: 'Motivation is what gets you started. Habit is what keeps you going.', author: 'Jim Ryun', icon: '🏃' },
+  { text: "You don't have to be extreme, just consistent.", author: 'Unknown', icon: '💪' },
+  { text: "The only bad workout is the one that didn't happen.", author: 'Unknown', icon: '🏋️' },
+  { text: 'Sunlight is the best disinfectant \u2014 and the best productivity tool.', author: 'Andrew Huberman', icon: '\u2600\uFE0F' },
+  { text: 'Your health is an investment, not an expense.', author: 'Unknown', icon: '\u2764\uFE0F' },
+  { text: 'The mind is everything. What you think, you become.', author: 'Buddha', icon: '🧘' },
+  { text: 'Courage is not the absence of fear; it is the mastery of it.', author: 'Trupti Shiralkar', icon: '\uD83D\uDEE1\uFE0F' },
+  { text: 'Success is the sum of small efforts repeated day in and day out.', author: 'Robert Collier', icon: '🔁' },
+  { text: 'The body achieves what the mind believes.', author: 'Napoleon Hill', icon: '💭' },
+  { text: 'Don\u2019t count the days, make the days count.', author: 'Muhammad Ali', icon: '🥊' },
+  { text: 'Energy and persistence conquer all things.', author: 'Benjamin Franklin', icon: '\u26A1' },
+  { text: 'Take care of your body. It\u2019s the only place you have to live.', author: 'Jim Rohn', icon: '🏠' },
+  { text: 'A healthy outside starts from the inside.', author: 'Robert Urich', icon: '🌱' },
+  { text: 'The greatest wealth is health.', author: 'Virgil', icon: '💎' },
+  { text: 'An early morning walk is a blessing for the whole day.', author: 'Henry David Thoreau', icon: '🌅' },
+  { text: 'Happiness is the highest form of health.', author: 'Dalai Lama', icon: '😊' },
+  { text: 'It is health that is real wealth, not pieces of gold and silver.', author: 'Mahatma Gandhi', icon: '🙏' },
+  { text: 'Your future is created by what you do today, not tomorrow.', author: 'Robert Kiyosaki', icon: '📅' },
+  { text: 'The only impossible journey is the one you never begin.', author: 'Tony Robbins', icon: '🧭' },
+  { text: 'Strive for progress, not perfection.', author: 'Unknown', icon: '🌟' },
+  { text: 'What gets measured gets managed.', author: 'Peter Drucker', icon: '📊' },
+  { text: 'The best time to plant a tree was 20 years ago. The second best time is now.', author: 'Chinese Proverb', icon: '🌳' },
+  { text: 'Fall seven times, stand up eight.', author: 'Japanese Proverb', icon: '🎌' },
+  { text: 'Whether you think you can or you think you can\u2019t, you\u2019re right.', author: 'Henry Ford', icon: '🚗' },
+  { text: 'Continuous improvement is better than delayed perfection.', author: 'Mark Twain', icon: '🔧' },
+  { text: 'The difference between ordinary and extraordinary is that little extra.', author: 'Jimmy Johnson', icon: '✨' },
+  { text: 'Hard work beats talent when talent doesn\u2019t work hard.', author: 'Tim Notke', icon: '⚒️' },
+  { text: 'A goal without a plan is just a wish.', author: 'Antoine de Saint-Exup\u00E9ry', icon: '🗺️' },
+  { text: 'The pain you feel today will be the strength you feel tomorrow.', author: 'Arnold Schwarzenegger', icon: '💥' },
+  { text: 'Your limitation\u2014it\u2019s only your imagination.', author: 'Unknown', icon: '🌈' },
+  { text: 'Push yourself, because no one else is going to do it for you.', author: 'Unknown', icon: '🏔️' },
+  { text: 'Great things never come from comfort zones.', author: 'Unknown', icon: '🔓' },
+  { text: 'Dream it. Wish it. Do it.', author: 'Unknown', icon: '✅' },
+  { text: 'The harder you work for something, the greater you\u2019ll feel when you achieve it.', author: 'Unknown', icon: '🏆' },
+  { text: 'Don\u2019t stop when you\u2019re tired. Stop when you\u2019re done.', author: 'Unknown', icon: '🛑' },
+  { text: 'Wake up with determination. Go to bed with satisfaction.', author: 'Unknown', icon: '🌙' },
+  { text: 'Do something today that your future self will thank you for.', author: 'Sean Patrick Flanery', icon: '🎁' },
+  { text: 'Little things make big days.', author: 'Unknown', icon: '🔸' },
+  { text: 'It\u2019s going to be hard, but hard does not mean impossible.', author: 'Unknown', icon: '🪨' },
+  { text: 'Sometimes later becomes never. Do it now.', author: 'Unknown', icon: '⏰' },
+  { text: 'Believe you can and you\u2019re halfway there.', author: 'Theodore Roosevelt', icon: '🦅' },
+  { text: 'The key to success is to focus on goals, not obstacles.', author: 'Unknown', icon: '🔑' },
+];
+
+let _currentQuoteIdx = Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length);
+let _quoteDirection = 'next'; // 'next' or 'prev' — controls slide direction
+let _quoteAnimating = false;
+let _quotePaused = false;
+
+function getNextQuote() {
+  _quoteDirection = 'next';
+  _currentQuoteIdx = (_currentQuoteIdx + 1) % MOTIVATIONAL_QUOTES.length;
+  return MOTIVATIONAL_QUOTES[_currentQuoteIdx];
+}
+
+function getPrevQuote() {
+  _quoteDirection = 'prev';
+  _currentQuoteIdx = (_currentQuoteIdx - 1 + MOTIVATIONAL_QUOTES.length) % MOTIVATIONAL_QUOTES.length;
+  return MOTIVATIONAL_QUOTES[_currentQuoteIdx];
+}
+
+function renderQuoteWidget() {
+  const q = MOTIVATIONAL_QUOTES[_currentQuoteIdx];
+  return `
+    <div class="quote-widget" id="quote-widget">
+      <div class="quote-widget-glow"></div>
+      <div class="quote-scroll-viewport" id="quote-viewport">
+        <div class="quote-slide quote-slide--active" id="quote-slide">
+          <div class="quote-icon-large">${q.icon}</div>
+          <blockquote class="quote-text">\u201C${q.text}\u201D</blockquote>
+          <cite class="quote-author">\u2014 ${q.author}</cite>
+        </div>
+      </div>
+      <div class="quote-progress-track" id="quote-progress-track">
+        <div class="quote-progress-fill" id="quote-progress-fill"></div>
+      </div>
+      <div class="quote-nav">
+        <button class="quote-nav-btn" id="quote-prev-btn" aria-label="Previous quote" title="Previous quote">\u2039</button>
+        <span class="quote-counter" id="quote-counter">${_currentQuoteIdx + 1} / ${MOTIVATIONAL_QUOTES.length}</span>
+        <button class="quote-nav-btn" id="quote-next-btn" aria-label="Next quote" title="Next quote">\u203A</button>
+      </div>
+    </div>`;
+}
+
+function attachQuoteListeners() {
+  const nextBtn = document.getElementById('quote-next-btn');
+  const prevBtn = document.getElementById('quote-prev-btn');
+  const widget = document.getElementById('quote-widget');
+
+  if (nextBtn) nextBtn.addEventListener('click', () => {
+    resetQuoteProgress();
+    animateQuoteScroll(getNextQuote());
+  });
+  if (prevBtn) prevBtn.addEventListener('click', () => {
+    resetQuoteProgress();
+    animateQuoteScroll(getPrevQuote());
+  });
+
+  // Pause on hover
+  if (widget) {
+    widget.addEventListener('mouseenter', () => {
+      _quotePaused = true;
+      const fill = document.getElementById('quote-progress-fill');
+      if (fill) fill.style.animationPlayState = 'paused';
+    });
+    widget.addEventListener('mouseleave', () => {
+      _quotePaused = false;
+      const fill = document.getElementById('quote-progress-fill');
+      if (fill) fill.style.animationPlayState = 'running';
+    });
+  }
+}
+
+function animateQuoteScroll(q) {
+  if (_quoteAnimating) return;
+  _quoteAnimating = true;
+
+  const viewport = document.getElementById('quote-viewport');
+  const counter = document.getElementById('quote-counter');
+  if (!viewport) { _quoteAnimating = false; return; }
+
+  const currentSlide = viewport.querySelector('.quote-slide--active');
+  const exitClass = _quoteDirection === 'next' ? 'quote-slide--exit-up' : 'quote-slide--exit-down';
+  const enterClass = _quoteDirection === 'next' ? 'quote-slide--enter-up' : 'quote-slide--enter-down';
+
+  // Create new slide
+  const newSlide = document.createElement('div');
+  newSlide.className = 'quote-slide ' + enterClass;
+  newSlide.innerHTML = `
+    <div class="quote-icon-large">${q.icon}</div>
+    <blockquote class="quote-text">\u201C${q.text}\u201D</blockquote>
+    <cite class="quote-author">\u2014 ${q.author}</cite>
+  `;
+
+  viewport.appendChild(newSlide);
+
+  // Start exit animation on old slide
+  if (currentSlide) {
+    currentSlide.classList.remove('quote-slide--active');
+    currentSlide.classList.add(exitClass);
+  }
+
+  // Trigger enter animation
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      newSlide.classList.remove(enterClass);
+      newSlide.classList.add('quote-slide--active');
+    });
+  });
+
+  // Update counter
+  if (counter) counter.textContent = (_currentQuoteIdx + 1) + ' / ' + MOTIVATIONAL_QUOTES.length;
+
+  // Cleanup old slide after animation
+  setTimeout(() => {
+    if (currentSlide && currentSlide.parentNode) currentSlide.remove();
+    _quoteAnimating = false;
+  }, 500);
+}
+
+function resetQuoteProgress() {
+  const fill = document.getElementById('quote-progress-fill');
+  if (!fill) return;
+  fill.classList.remove('quote-progress-running');
+  // Force reflow
+  void fill.offsetWidth;
+  fill.classList.add('quote-progress-running');
+  if (_quotePaused) fill.style.animationPlayState = 'paused';
+  else fill.style.animationPlayState = 'running';
+}
+
+// Auto-scroll quotes every 8 seconds
+let _quoteAutoRotate = null;
+function startQuoteAutoRotate() {
+  stopQuoteAutoRotate();
+  resetQuoteProgress();
+  _quoteAutoRotate = setInterval(() => {
+    if (!document.getElementById('quote-widget')) { stopQuoteAutoRotate(); return; }
+    if (_quotePaused) return;
+    animateQuoteScroll(getNextQuote());
+    resetQuoteProgress();
+  }, 8000);
+}
+function stopQuoteAutoRotate() {
+  if (_quoteAutoRotate) { clearInterval(_quoteAutoRotate); _quoteAutoRotate = null; }
+}
+
+// ─── Home Page ───────────────────────────────────────────────────────────────
+function renderHome(root) {
+  root.innerHTML = `
+    <div class="container">
+      <!-- Hero Section -->
+      <section class="home-hero home-animate home-animate-d1">
+        <div class="home-hero-content">
+          <div class="home-hero-badge">🧠 Neuroscience-Backed</div>
+          <h1 class="home-hero-title">
+            Track Your Daily<br>
+            <span class="hero-gradient">Productivity Protocols</span>
+          </h1>
+          <p class="home-hero-desc">
+            A neuroscience-backed daily routine tracker inspired by leading researchers like Andrew Huberman.
+            Optimise your morning, afternoon, and evening protocols for peak performance, energy, and sleep.
+          </p>
+          <div class="home-hero-actions">
+            <a href="#tracker" class="home-btn-primary">🚀 Start Tracking</a>
+            <a href="#about" class="home-btn-secondary">Learn More</a>
+          </div>
+        </div>
+        <div class="home-hero-visual">
+          <img src="assets/hero-banner.png" alt="Productivity Tracker Dashboard Preview" />
+        </div>
+      </section>
+
+      <!-- Demo Tracker Preview -->
+      <section class="home-animate home-animate-d2">
+        <div class="home-section-label">How It Works</div>
+        <h2 class="home-section-title">Three Phases. One Optimised Day.</h2>
+        <p class="home-section-subtitle">Your daily routine is divided into three science-backed phases. Track habits, log meals, monitor sleep consistency, and measure your progress.</p>
+
+        <div class="home-demo-grid">
+          <!-- Morning -->
+          <div class="home-demo-card morning-demo">
+            <div class="home-demo-header">
+              <span class="home-demo-phase">🌅 Morning</span>
+              <span class="home-demo-pct">75%</span>
+            </div>
+            <div class="home-demo-progress"><div class="home-demo-progress-fill" style="width:75%"></div></div>
+            <div class="home-demo-activities">
+              <div class="home-demo-activity demo-done"><span class="home-demo-activity-icon">💧</span> Hydration checklist</div>
+              <div class="home-demo-activity demo-done"><span class="home-demo-activity-icon">☕</span> Delay caffeine (90 min)</div>
+              <div class="home-demo-activity demo-done"><span class="home-demo-activity-icon">🌤️</span> Morning sunlight log</div>
+              <div class="home-demo-activity"><span class="home-demo-activity-icon">🎯</span> Deep work session</div>
+            </div>
+          </div>
+
+          <!-- Afternoon -->
+          <div class="home-demo-card afternoon-demo">
+            <div class="home-demo-header">
+              <span class="home-demo-phase">☀️ Afternoon</span>
+              <span class="home-demo-pct">40%</span>
+            </div>
+            <div class="home-demo-progress"><div class="home-demo-progress-fill" style="width:40%"></div></div>
+            <div class="home-demo-activities">
+              <div class="home-demo-activity demo-done"><span class="home-demo-activity-icon">🥗</span> Lunch tracker</div>
+              <div class="home-demo-activity demo-done"><span class="home-demo-activity-icon">🚶</span> Afternoon walk</div>
+              <div class="home-demo-activity"><span class="home-demo-activity-icon">😴</span> Nap / NSDR session</div>
+              <div class="home-demo-activity"><span class="home-demo-activity-icon">🏋️</span> Exercise log</div>
+              <div class="home-demo-activity"><span class="home-demo-activity-icon">🔄</span> Dopamine reset</div>
+            </div>
+          </div>
+
+          <!-- Evening -->
+          <div class="home-demo-card evening-demo">
+            <div class="home-demo-header">
+              <span class="home-demo-phase">🌙 Evening</span>
+              <span class="home-demo-pct">20%</span>
+            </div>
+            <div class="home-demo-progress"><div class="home-demo-progress-fill" style="width:20%"></div></div>
+            <div class="home-demo-activities">
+              <div class="home-demo-activity demo-done"><span class="home-demo-activity-icon">🌅</span> Sunset light exposure</div>
+              <div class="home-demo-activity"><span class="home-demo-activity-icon">🍽️</span> Dinner log</div>
+              <div class="home-demo-activity"><span class="home-demo-activity-icon">🌙</span> Wind-down checklist</div>
+              <div class="home-demo-activity"><span class="home-demo-activity-icon">🫁</span> Breathing exercise</div>
+              <div class="home-demo-activity"><span class="home-demo-activity-icon">📊</span> Sleep tracking</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Feature Highlights -->
+      <section class="home-animate home-animate-d3">
+        <div class="home-section-label">Features</div>
+        <h2 class="home-section-title">Everything You Need to Optimise Your Day</h2>
+        <p class="home-section-subtitle">Built with science, designed for real life. Every feature helps you build consistent, high-performance daily habits.</p>
+
+        <div class="home-features-grid">
+          <div class="home-feature-card">
+            <div class="home-feature-icon home-feature-icon--purple">⏱️</div>
+            <h3 class="home-feature-title">Focus Timer</h3>
+            <p class="home-feature-desc">Built-in Pomodoro timer with focus, short break, and long break modes to keep you in the zone.</p>
+          </div>
+          <div class="home-feature-card">
+            <div class="home-feature-icon home-feature-icon--blue">🧠</div>
+            <h3 class="home-feature-title">Science-Backed Protocols</h3>
+            <p class="home-feature-desc">Routines inspired by Andrew Huberman's neuroscience research on sleep, focus, and energy.</p>
+          </div>
+          <div class="home-feature-card">
+            <div class="home-feature-icon home-feature-icon--green">📊</div>
+            <h3 class="home-feature-title">Progress Tracking</h3>
+            <p class="home-feature-desc">Daily completion rates, sleep consistency charts, and weekly progress summaries at a glance.</p>
+          </div>
+          <div class="home-feature-card">
+            <div class="home-feature-icon home-feature-icon--pink">🎨</div>
+            <h3 class="home-feature-title">Custom Routines</h3>
+            <p class="home-feature-desc">Create and customise your own activity trackers. Drag, drop, and build your perfect daily protocol.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- CTA Section -->
+      <section class="home-cta home-animate home-animate-d4">
+        <h2 class="home-cta-title">Ready to Optimise Your Day?</h2>
+        <p class="home-cta-desc">Start tracking your daily protocols now. It's free, private, and backed by science.</p>
+        <a href="#tracker" class="home-btn-primary" style="position:relative;z-index:1;">🚀 Go to Daily Tracker</a>
+      </section>
+    </div>
+  `;
+}
+
+// ─── Tracker Page ────────────────────────────────────────────────────────────
 function renderTracker(root) {
   root.innerHTML = `
     <div class="container">
+      ${renderQuoteWidget()}
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:1rem;">
         <h1 class="text-3xl">Daily Tracker</h1>
         <input type="date" id="tracker-date" value="${selectedDate}" />
@@ -687,6 +1008,9 @@ function renderTracker(root) {
       <div class="grid-3" id="tracker-grid">Loading…</div>
     </div>
   `;
+
+  attachQuoteListeners();
+  startQuoteAutoRotate();
 
   document.getElementById('tracker-date').addEventListener('change', e => {
     if (!e.target.value) return;
@@ -2265,17 +2589,104 @@ window.deleteUserSample = function(sampleId) {
 function renderAbout(root) {
   root.innerHTML = `
     <div class="container">
-      <h1 class="text-3xl mb-4">About Productivity Tracker</h1>
-      <div class="tracker-tile">
-        <p class="mb-4 text-lg">This application is built on the principles of neuroscience and human biology to optimise daily performance, focus, and sleep.</p>
-        <p class="mb-4">Inspired by leading scientists and researchers, our protocols divide the day into three distinct phases:</p>
-        <ul style="padding-left:1.5rem;margin-bottom:1.5rem;line-height:1.8;">
-          <li><strong>Phase 1 (Morning):</strong> Focus on wakefulness, cortisol peaks, and bright light viewing.</li>
-          <li><strong>Phase 2 (Afternoon):</strong> Focus on physical exertion, deep work, and active recovery (NSDR).</li>
-          <li><strong>Phase 3 (Evening):</strong> Focus on temperature drops, light limitation, and preparing the brain for rest.</li>
-        </ul>
-        <p>Built as a static, lightning-fast application powered by Supabase.</p>
+      <div class="about-hero">
+        <h1 class="about-hero-title">About Productivity Tracker</h1>
+        <p class="about-hero-subtitle">Built on the principles of neuroscience and human biology to optimise daily performance, focus, and sleep.</p>
       </div>
+
+      <!-- Mission Card -->
+      <div class="about-mission-card">
+        <div class="about-mission-icon">🎯</div>
+        <div>
+          <h2 class="about-mission-heading">Our Mission</h2>
+          <p class="about-mission-text">Inspired by leading scientists and researchers, our protocols divide the day into three distinct phases to maximise your potential:</p>
+          <div class="about-phases-grid">
+            <div class="about-phase-chip about-phase-morning">🌅 <strong>Morning</strong> — Wakefulness, cortisol peaks &amp; bright light viewing</div>
+            <div class="about-phase-chip about-phase-afternoon">☀️ <strong>Afternoon</strong> — Physical exertion, deep work &amp; active recovery (NSDR)</div>
+            <div class="about-phase-chip about-phase-evening">🌙 <strong>Evening</strong> — Temperature drops, light limitation &amp; preparing the brain for rest</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Meet the Team -->
+      <h2 class="about-section-title">Meet the Team &amp; Inspiration</h2>
+      <div class="about-profiles-grid">
+
+        <!-- Professor Andrew Huberman -->
+        <div class="about-profile-card">
+          <div class="about-profile-avatar about-avatar-huberman">
+            <span class="about-avatar-emoji">🧠</span>
+          </div>
+          <div class="about-profile-badge">Scientific Inspiration</div>
+          <h3 class="about-profile-name">Prof. Andrew Huberman</h3>
+          <p class="about-profile-role">Neuroscientist · Stanford University</p>
+          <p class="about-profile-bio">
+            Andrew Huberman, Ph.D., is a tenured professor of Neurobiology and Ophthalmology at Stanford University School of Medicine. He is the host of the <em>Huberman Lab Podcast</em>, one of the most popular science podcasts in the world, where he discusses neuroscience-based tools for everyday life.
+          </p>
+          <div class="about-profile-expertise">
+            <span class="about-expertise-tag">🔬 Neuroscience</span>
+            <span class="about-expertise-tag">🌤️ Light &amp; Circadian Biology</span>
+            <span class="about-expertise-tag">🧘 NSDR / Yoga Nidra</span>
+            <span class="about-expertise-tag">☕ Caffeine Timing</span>
+            <span class="about-expertise-tag">😴 Sleep Optimisation</span>
+          </div>
+          <div class="about-profile-contribution">
+            <span class="about-contrib-label">Contribution</span>
+            <p>The core protocols in this tracker — morning sunlight exposure, delayed caffeine intake, NSDR sessions, and sleep-optimisation routines — are directly inspired by Prof. Huberman's research and public teachings on the neuroscience of daily performance.</p>
+          </div>
+        </div>
+
+        <!-- Trupti Shiralkar -->
+        <div class="about-profile-card">
+          <div class="about-profile-avatar about-avatar-trupti">
+            <span class="about-avatar-emoji">🛡️</span>
+          </div>
+          <div class="about-profile-badge about-badge-creator">Creator &amp; Lead Developer</div>
+          <h3 class="about-profile-name">Trupti Shiralkar</h3>
+          <p class="about-profile-role">Full-Stack Developer · Cybersecurity Expert</p>
+          <p class="about-profile-bio">
+            Trupti Shiralkar is a skilled software engineer and cybersecurity professional with a passion for building tools that merge technology with human wellness. She is the creator of both the <strong>Zen Security</strong> platform and this <strong>Productivity Tracker</strong>, combining her expertise in secure application development with neuroscience-backed productivity principles.
+          </p>
+          <div class="about-profile-expertise">
+            <span class="about-expertise-tag">💻 Full-Stack Development</span>
+            <span class="about-expertise-tag">🛡️ Cybersecurity</span>
+            <span class="about-expertise-tag">🎨 UI/UX Design</span>
+            <span class="about-expertise-tag">📊 Data Analytics</span>
+            <span class="about-expertise-tag">🧠 Neuroscience Enthusiast</span>
+          </div>
+          <div class="about-profile-contribution">
+            <span class="about-contrib-label">Contribution</span>
+            <p>Trupti designed and developed the entire Productivity Tracker application — from architecture and UI design to the Supabase backend integration. Her vision was to create a beautiful, science-driven tool that anyone can use to build better daily habits.</p>
+          </div>
+        </div>
+
+        <!-- Anirban -->
+        <div class="about-profile-card">
+          <div class="about-profile-avatar about-avatar-anirban">
+            <span class="about-avatar-emoji">⚡</span>
+          </div>
+          <div class="about-profile-badge about-badge-collab">Collaborator &amp; Advisor</div>
+          <h3 class="about-profile-name">Anirban</h3>
+          <p class="about-profile-role">Software Engineer · Technology Strategist</p>
+          <p class="about-profile-bio">
+            Anirban is a talented software engineer and technology strategist who collaborates closely on project direction, feature design, and technical architecture. With a sharp eye for detail and a deep understanding of modern web technologies, Anirban provides invaluable insights that shape the quality and direction of the platform.
+          </p>
+          <div class="about-profile-expertise">
+            <span class="about-expertise-tag">🏗️ Architecture Design</span>
+            <span class="about-expertise-tag">💡 Feature Strategy</span>
+            <span class="about-expertise-tag">🔧 Technical Advisory</span>
+            <span class="about-expertise-tag">📱 Modern Web Technologies</span>
+            <span class="about-expertise-tag">🤝 Collaborative Development</span>
+          </div>
+          <div class="about-profile-contribution">
+            <span class="about-contrib-label">Contribution</span>
+            <p>Anirban plays a key advisory and collaborative role — helping shape feature priorities, reviewing technical decisions, and ensuring the platform meets the highest standards of quality, performance, and user experience.</p>
+          </div>
+        </div>
+
+      </div>
+
+
     </div>
   `;
 }
