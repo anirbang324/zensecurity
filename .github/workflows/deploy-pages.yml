@@ -1,4 +1,4 @@
-# Deploy Productivity Tracker to GitHub Pages
+# Deploy Zen Security site + Productivity Tracker to GitHub Pages
 name: Deploy to GitHub Pages
 
 on:
@@ -35,8 +35,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload the Productivity_tracker subfolder
-          path: './Productivity_tracker'
+          # Upload the entire repo (zensecurity-main + Productivity_tracker)
+          path: '.'
 
       - name: Deploy to GitHub Pages
         id: deployment
